@@ -1,5 +1,6 @@
 // Path: src/cli/javaspectre.js
-// Entry command; supports make, refine, replicate, inspect, impact, describe, and make-aln-shell.
+// Entry command; supports make, refine, replicate, inspect, impact, describe,
+// make-aln-shell, and ipfs-cid.
 
 #!/usr/bin/env node
 
@@ -28,6 +29,7 @@ function printHelp() {
     "  impact           Evaluate and simulate sustainability impact.",
     "  describe         Turn a plain-text description into a RepoBlueprint JSON.",
     "  make-aln-shell   Scaffold a zero-IDE ALN Web Kernel repo.",
+    "  ipfs-cid         Create an IPFS CID for a virtual-object JSON.",
     "",
     "Examples:",
     "  javaspectre make \"sustainable energy analytics service\"",
@@ -37,6 +39,7 @@ function printHelp() {
     "  javaspectre impact 100000",
     "  javaspectre describe \"A spectral AI that designs open-source JS repos.\"",
     "  javaspectre make-aln-shell aln-shell-demo",
+    "  javaspectre ipfs-cid '{\"id\":\"ALNUserKernel\",\"category\":\"html-shell\"}'",
     ""
   ];
   process.stdout.write(lines.join("\n"));
@@ -57,18 +60,22 @@ async function main() {
     await runMake(rest, engine);
     return;
   }
+
   if (command === "refine") {
     await runRefine(rest, engine);
     return;
   }
+
   if (command === "replicate") {
     await runReplicate(rest, engine);
     return;
   }
+
   if (command === "inspect") {
     await runInspect(rest, engine);
     return;
   }
+
   if (command === "impact") {
     await runImpact(rest, engine);
     return;
@@ -91,6 +98,40 @@ async function main() {
   if (command === "make-aln-shell") {
     const targetDir = rest[0] || "aln-shell-repo";
     createAlnShellRepo(targetDir);
+    return;
+  }
+
+  // IPFS virtual-object identifier
+  if (command === "ipfs-cid") {
+    const { default: IPFSVirtualObjectIdentifier } = await import(
+      "../ipfs/IPFSVirtualObjectIdentifier.js"
+    );
+
+    let obj;
+    if (rest.length > 0) {
+      const joined = rest.join(" ");
+      try {
+        obj = JSON.parse(joined);
+      } catch {
+        process.stderr.write("ipfs-cid: argument must be valid JSON\n");
+        process.exit(1);
+      }
+    } else {
+      // Minimal default virtual-object if none provided
+      obj = {
+        id: "ALNUserKernel",
+        category: "html-shell",
+        signature: "ALN.dashboard.v1",
+        fields: {
+          runtimeProfile: "string",
+          sanitiserEngine: "object"
+        }
+      };
+    }
+
+    const identifier = new IPFSVirtualObjectIdentifier();
+    const cid = identifier.createCID(obj);
+    process.stdout.write(JSON.stringify(cid, null, 2));
     return;
   }
 
