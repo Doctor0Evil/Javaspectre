@@ -1,24 +1,52 @@
 {
   "name": "javaspectre",
-  "version": "0.1.0",
-  "description": "Spectral-grade ALN framework for transforming conceptual uncertainty into executable JavaScript and replicable repositories.",
+  "version": "0.2.0",
+  "description": "Spectral-grade ALN framework that turns conceptual uncertainty into executable JavaScript, self-healing repositories, and sustainability-aware system blueprints.",
   "type": "module",
-  "main": "src/core/ALNKernel.js",
+  "main": "src/core/SpectralEngine.js",
   "bin": {
     "javaspectre": "src/cli/javaspectre.js"
   },
   "scripts": {
-    "test": "node test/ALNKernel.test.js && node test/SpectralHarvester.test.js && node test/IntegrityEngine.test.js",
-    "demo": "node examples/demo-manifesto.js"
+    "test": "node tests/spectral.test.js && node tests/integrity.test.js && node tests/builder.test.js && node tests/harvester.test.js",
+    "lint": "node ./build/ci/lint-runner.cjs || echo \"Lint runner not yet wired; skipping.\"",
+    "demo:manifesto": "node examples/demo-manifesto.js",
+    "demo:impact": "node examples/demo-impact.js",
+    "cli:make": "node src/cli/commands/make.js",
+    "cli:refine": "node src/cli/commands/refine.js",
+    "cli:replicate": "node src/cli/commands/replicate.js",
+    "cli:inspect": "node src/cli/commands/inspect.js",
+    "cli:impact": "node src/cli/commands/impact.js"
   },
   "keywords": [
     "spectral-ai",
     "augmented-language-networks",
     "repository-blueprint",
+    "virtual-object-harvesting",
+    "sustainability",
+    "self-healing-repos",
     "javaspectre"
   ],
-  "author": "Javaspectre Initiative",
-  "license": "Apache-2.0",
-  "dependencies": {},
-  "devDependencies": {}
+  "author": "The Javaspectre Initiative",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Doctor0Evil/Javaspectre.git"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "yaml": "^2.6.0",
+    "ajv": "^8.17.1",
+    "chalk": "^5.3.0"
+  },
+  "devDependencies": {
+    "eslint": "^9.14.0"
+  },
+  "javaspectre": {
+    "doctrineVersion": 1,
+    "maxReplicationTimeHours": 24,
+    "spectralCapabilitiesModule": "src/capabilities/JavaspectreCapabilities.js"
+  }
 }
