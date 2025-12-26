@@ -1,0 +1,716 @@
+<!-- File: /aln-context/aln-hub-context-map.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ALN HubContextMap · Lottie Player Surface</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <!--
+    HubSpot-like context router + Lottie surface
+
+    - HubContextMap: mirrors major HubSpot product / ecosystem areas as routing slugs
+      (Academy, Marketing, Sales, Service, CRM, Partners, Commerce, Trial, etc.). [web:22][web:23][web:25][web:27][web:28][web:30]
+    - LottiePlayerElement: web component exposing attributes such as src, autoplay,
+      loop, speed, mode, renderer, background and emitting events like ready, frame,
+      complete, error based on the Lottie player spec. [web:26][web:11][web:18]
+    - This file: zero-IDE, static ALN harness that:
+      * lets you pick a Hub context,
+      * instantiates <lottie-player>,
+      * bridges player events into a spectral log tagged with that context.
+  -->
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #020308;
+      --card: #050814;
+      --accent: #7bf5c2;
+      --accent-soft: rgba(123, 245, 194, 0.16);
+      --accent-2: #66aaff;
+      --text: #f5f7ff;
+      --muted: #9ca3c7;
+      --border: #141b2b;
+      --radius-lg: 18px;
+      --radius-md: 12px;
+      --shadow-soft: 0 18px 45px rgba(0, 0, 0, 0.75);
+      --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at top, #101729 0, #020308 55%, #000 100%);
+      color: var(--text);
+      font-family: var(--font-sans);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: stretch;
+    }
+
+    .aln-root {
+      display: grid;
+      grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.7fr);
+      gap: 18px;
+      padding: 20px;
+      width: 100%;
+      max-width: 1240px;
+    }
+
+    @media (max-width: 960px) {
+      .aln-root {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    .aln-panel {
+      background: linear-gradient(145deg, rgba(8, 12, 24, 0.98), rgba(2, 4, 10, 0.98));
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-soft);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .aln-panel::before {
+      content: "";
+      position: absolute;
+      inset: -1px;
+      background:
+        radial-gradient(circle at 0 0, rgba(123, 245, 194, 0.18), transparent 55%),
+        radial-gradient(circle at 100% 100%, rgba(102, 170, 255, 0.15), transparent 55%);
+      mix-blend-mode: screen;
+      opacity: 0.7;
+      pointer-events: none;
+    }
+
+    .aln-panel-inner {
+      position: relative;
+      padding: 16px 18px 16px;
+      z-index: 1;
+    }
+
+    .aln-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .aln-title-block {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .aln-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      border: 1px solid rgba(123, 245, 194, 0.7);
+      background: linear-gradient(90deg, rgba(123, 245, 194, 0.12), rgba(102, 170, 255, 0.1));
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+    }
+
+    .aln-chip-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 5px rgba(123, 245, 194, 0.22);
+    }
+
+    .aln-title {
+      font-size: 18px;
+      font-weight: 620;
+      letter-spacing: 0.03em;
+    }
+
+    .aln-subtitle {
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .aln-mini-stats {
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      align-items: flex-end;
+    }
+
+    .aln-badge {
+      display: inline-flex;
+      padding: 2px 7px;
+      border-radius: 999px;
+      border: 1px solid rgba(123, 245, 194, 0.7);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+    }
+
+    .aln-section-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--muted);
+      margin: 4px 0 6px;
+    }
+
+    .aln-block {
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(20, 28, 48, 0.95);
+      background:
+        radial-gradient(circle at top left, rgba(123, 245, 194, 0.1), transparent 60%),
+        linear-gradient(145deg, rgba(3, 6, 14, 0.96), rgba(4, 7, 16, 0.98));
+      padding: 10px 10px 9px;
+      margin-bottom: 10px;
+    }
+
+    .aln-block-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .aln-block-title {
+      font-size: 13px;
+      font-weight: 570;
+    }
+
+    .aln-block-meta {
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .aln-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .aln-field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .aln-field label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .aln-select,
+    .aln-input {
+      border-radius: 999px;
+      border: 1px solid rgba(40, 52, 82, 0.95);
+      background:
+        radial-gradient(circle at top left, rgba(123, 245, 194, 0.12), transparent 60%),
+        rgba(5, 9, 18, 0.98);
+      color: var(--text);
+      font-size: 12px;
+      padding: 6px 9px;
+      outline: none;
+    }
+
+    .aln-select:focus,
+    .aln-input:focus {
+      border-color: rgba(123, 245, 194, 0.9);
+      box-shadow: 0 0 0 1px rgba(123, 245, 194, 0.4);
+    }
+
+    .aln-select {
+      appearance: none;
+      -webkit-appearance: none;
+      background-image:
+        linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+        linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+      background-position:
+        calc(100% - 13px) 10px,
+        calc(100% - 8px) 10px;
+      background-size: 5px 5px, 5px 5px;
+      background-repeat: no-repeat;
+      padding-right: 22px;
+    }
+
+    .aln-tag-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 4px;
+    }
+
+    .aln-tag {
+      border-radius: 999px;
+      border: 1px solid rgba(37, 48, 78, 0.98);
+      padding: 2px 7px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      background: rgba(2, 4, 10, 0.98);
+    }
+
+    .aln-tag[data-kind="ctx"] {
+      border-color: rgba(123, 245, 194, 0.85);
+      color: var(--accent);
+    }
+
+    .aln-tag[data-kind="anim"] {
+      border-color: rgba(102, 170, 255, 0.85);
+      color: var(--accent-2);
+    }
+
+    .aln-hint {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .aln-hint code {
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+
+    /* RIGHT: player + log */
+
+    .aln-player-shell {
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(20, 28, 46, 0.96);
+      background:
+        radial-gradient(circle at 0 0, rgba(123, 245, 194, 0.1), transparent 60%),
+        rgba(3, 6, 12, 0.98);
+      padding: 10px;
+      display: grid;
+      grid-template-rows: minmax(220px, 260px) minmax(120px, 1fr);
+      gap: 8px;
+    }
+
+    .aln-player-frame {
+      border-radius: 12px;
+      border: 1px solid rgba(24, 33, 55, 0.96);
+      background: radial-gradient(circle at 50% 0, rgba(102, 170, 255, 0.1), transparent 60%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px;
+      position: relative;
+    }
+
+    .aln-player-frame lottie-player {
+      width: 100%;
+      height: 100%;
+      --lottie-player-toolbar-display: block;
+      --lottie-player-toolbar-background-color: rgba(3, 6, 14, 0.98);
+      --lottie-player-toolbar-icon-color: #e5e7eb;
+      --lottie-player-toolbar-icon-hover-color: #f97316;
+      --lottie-player-toolbar-icon-active-color: #7bf5c2;
+      --lottie-player-seeker-track-color: rgba(55, 65, 81, 0.9);
+      --lottie-player-seeker-thumb-color: #7bf5c2;
+    }
+
+    .aln-player-overlay {
+      position: absolute;
+      left: 10px;
+      top: 10px;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: rgba(3, 7, 18, 0.82);
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      color: var(--muted);
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+      pointer-events: none;
+    }
+
+    .aln-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent-2);
+    }
+
+    .aln-log {
+      border-radius: 10px;
+      border: 1px solid rgba(24, 33, 55, 0.96);
+      background: rgba(5, 9, 18, 0.98);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 6px 6px 4px;
+      color: #e5e7eb;
+      overflow: auto;
+      white-space: pre;
+    }
+
+    .aln-log::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    .aln-log::-webkit-scrollbar-thumb {
+      background: rgba(55, 65, 81, 0.9);
+      border-radius: 99px;
+    }
+
+    .aln-log-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .aln-btn {
+      border-radius: 999px;
+      border: 1px solid rgba(37, 48, 78, 0.95);
+      background: rgba(8, 12, 24, 0.98);
+      color: var(--muted);
+      font-size: 11px;
+      padding: 3px 9px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .aln-btn:hover {
+      border-color: rgba(123, 245, 194, 0.8);
+      color: var(--accent);
+    }
+
+    .aln-btn-primary {
+      border-color: rgba(123, 245, 194, 0.9);
+      color: var(--accent);
+      background:
+        radial-gradient(circle at top left, rgba(123, 245, 194, 0.18), transparent 60%);
+    }
+  </style>
+</head>
+<body>
+  <main class="aln-root" role="main">
+    <!-- LEFT: Hub context classifier -->
+    <section class="aln-panel" aria-label="Hub context classifier">
+      <div class="aln-panel-inner">
+        <header class="aln-header">
+          <div class="aln-title-block">
+            <div class="aln-chip">
+              <span class="aln-chip-dot" aria-hidden="true"></span>
+              <span>HubContextMap · $d router</span>
+            </div>
+            <div class="aln-title">Product-context classifier</div>
+            <div class="aln-subtitle">Academy · Hubs · Partners · Commerce</div>
+          </div>
+          <div class="aln-mini-stats">
+            <span>Context marketing surfaces [web:24]</span>
+            <span>Partners &amp; directory flows [web:21][web:22][web:23][web:25][web:27][web:30]</span>
+          </div>
+        </header>
+
+        <div class="aln-section-label">Context map ($d)</div>
+        <section class="aln-block" aria-label="HubContextMap definition">
+          <div class="aln-block-header">
+            <h2 class="aln-block-title">HubContextMap (frozen)</h2>
+            <div class="aln-block-meta">
+              <span class="aln-badge">Routing &amp; analytics dimension</span>
+            </div>
+          </div>
+          <div class="aln-grid">
+            <div class="aln-field">
+              <label for="aln-context-select">Active context</label>
+              <select id="aln-context-select" class="aln-select">
+                <option value="Academy">Academy</option>
+                <option value="AcademyEmbedded">AcademyEmbedded</option>
+                <option value="CmsDevelopers">CmsDevelopers</option>
+                <option value="CmsFree">CmsFree</option>
+                <option value="Marketing">Marketing</option>
+                <option value="Sales">Sales</option>
+                <option value="Service">Service</option>
+                <option value="Crm">Crm</option>
+                <option value="Commerce">Commerce</option>
+                <option value="Purchase">Purchase</option>
+                <option value="Trial">Trial</option>
+                <option value="HubSpotPartners">HubSpotPartners</option>
+                <option value="SolutionsProvider">SolutionsProvider</option>
+                <option value="DirectoryListing">DirectoryListing</option>
+                <option value="HubspotForStartups">HubspotForStartups</option>
+                <option value="Integrations">Integrations</option>
+                <option value="Microapp">Microapp</option>
+                <option value="AssetProvider">AssetProvider</option>
+                <option value="Developers">Developers</option>
+                <option value="FbCrm">FbCrm</option>
+              </select>
+            </div>
+            <div class="aln-field">
+              <label for="aln-context-slug">Canonical slug</label>
+              <input id="aln-context-slug" class="aln-input" type="text" readonly />
+            </div>
+          </div>
+          <p class="aln-hint">
+            Slugs mirror major HubSpot surfaces (Academy, Hubs, Commerce, Partners, directory, app marketplace) and are used for routing, experimentation, and personalization. [web:22][web:23][web:25][web:21][web:27][web:28][web:30]
+          </p>
+          <div class="aln-tag-list" aria-hidden="true">
+            <span class="aln-tag" data-kind="ctx">Academy / learning</span>
+            <span class="aln-tag" data-kind="ctx">Hubs: Marketing / Sales / Service / CRM</span>
+            <span class="aln-tag" data-kind="ctx">Commerce / Trial / Purchase</span>
+            <span class="aln-tag" data-kind="ctx">Partners / Solutions / Directory</span>
+            <span class="aln-tag" data-kind="ctx">Apps / Integrations / Microapps</span>
+          </div>
+        </section>
+
+        <div class="aln-section-label">Flow (Mermaid-ready)</div>
+        <section class="aln-block" aria-label="Context flow">
+          <pre class="aln-log" style="max-height: 180px;">
+flowchart TD
+  A[Request or page view] --> B[Determine product/context surface]
+  B --> C[Lookup in HubContextMap($d)]
+  C --> D[Select copy, layout, experiment]
+  D --> E[Render experience or send analytics event]</pre>
+          <p class="aln-hint">
+            This mirrors a typical HubSpot-style contextual marketing flow where content, forms, and experiments depend on the active surface. [web:24]
+          </p>
+        </section>
+      </div>
+    </section>
+
+    <!-- RIGHT: Lottie player surface bound to context -->
+    <section class="aln-panel" aria-label="Lottie player spectral surface">
+      <div class="aln-panel-inner">
+        <header class="aln-header">
+          <div class="aln-title-block">
+            <div class="aln-chip">
+              <span class="aln-chip-dot" aria-hidden="true"></span>
+              <span>LottiePlayerElement · Javaspectre</span>
+            </div>
+            <div class="aln-title">Context-aware animation surface</div>
+            <div class="aln-subtitle">&lt;lottie-player&gt; · PlayerEvents · PlayerState</div>
+          </div>
+          <div class="aln-mini-stats">
+            <span>Lottie web component properties [web:26]</span>
+            <span>Events: ready · frame · complete · error [web:11][web:18]</span>
+          </div>
+        </header>
+
+        <section class="aln-player-shell" aria-label="Player and spectral log">
+          <div class="aln-player-frame">
+            <div class="aln-player-overlay">
+              <span class="aln-dot"></span>
+              <span id="aln-overlay-context">context: trial</span>
+              <span>|</span>
+              <span id="aln-overlay-state">state: loading</span>
+            </div>
+
+            <!-- This requires an actual lottie-player web component script in the page using it.
+                 Properties/attributes follow the official spec (src, autoplay, loop, speed, controls, background, mode). [web:26] -->
+            <lottie-player
+              id="aln-lottie-player"
+              src="https://assets10.lottiefiles.com/packages/lf20_x62chJ.json"
+              background="transparent"
+              speed="1"
+              loop
+              autoplay
+              controls>
+            </lottie-player>
+          </div>
+
+          <div>
+            <div class="aln-log-header">
+              <span>Spectral log (context + PlayerEvents)</span>
+              <div>
+                <button class="aln-btn" type="button" id="aln-btn-clear-log">Clear log</button>
+                <button class="aln-btn aln-btn-primary" type="button" id="aln-btn-dump-log">Copy JSON</button>
+              </div>
+            </div>
+            <pre class="aln-log" id="aln-log" aria-label="Spectral event log">
+# LottieSpecterBridge stream
+# Each line: { type, rawEvent, context, channel, timestamp, stateSnapshot }</pre>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <!-- File: /aln-context/js/aln-hub-context-and-lottie-bridge.js -->
+  <script>
+    (function () {
+      "use strict";
+
+      // HubContextMap :: virtual classifier → slug
+      const HubContextMap = Object.freeze({
+        Academy: "academy",
+        AcademyEmbedded: "academy-embedded",
+        AssetProvider: "asset-provider",
+        ClassroomTraining: "classroom-training",
+        CmsDevelopers: "cms-developers",
+        CmsFree: "cms-free",
+        Commerce: "commerce",
+        Crm: "crm",
+        Developers: "developers",
+        DirectoryListing: "directory-listing",
+        FbCrm: "fb-crm",
+        HubSpotPartners: "hubspot-partners",
+        HubspotForStartups: "hubspot-for-startups",
+        Integrations: "integrations",
+        Marketing: "marketing",
+        Microapp: "microapp",
+        Purchase: "purchase",
+        Sales: "sales",
+        Service: "service",
+        SolutionsProvider: "solutions-provider",
+        Trial: "trial"
+      });
+
+      const ctxSelect = document.getElementById("aln-context-select");
+      const ctxSlug = document.getElementById("aln-context-slug");
+      const overlayCtx = document.getElementById("aln-overlay-context");
+      const overlayState = document.getElementById("aln-overlay-state");
+      const logEl = document.getElementById("aln-log");
+      const btnClear = document.getElementById("aln-btn-clear-log");
+      const btnDump = document.getElementById("aln-btn-dump-log");
+      const player = document.getElementById("aln-lottie-player");
+
+      const eventLog = [];
+
+      function now() {
+        if (typeof performance !== "undefined" && performance.now) return performance.now();
+        return Date.now();
+      }
+
+      function updateContextSlug() {
+        const key = ctxSelect.value;
+        const slug = HubContextMap[key] || "";
+        ctxSlug.value = slug;
+        overlayCtx.textContent = "context: " + (slug || key.toLowerCase());
+      }
+
+      function logSpectralEvent(payload) {
+        eventLog.push(payload);
+        const line = JSON.stringify(payload);
+        logEl.textContent += "\n" + line;
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+
+      function getPlayerSnapshot() {
+        const p = player;
+        const speed = "getLottieSpeed" in p && typeof p.getLottieSpeed === "function"
+          ? p.getLottieSpeed()
+          : (p.speed ?? null);
+        const direction = "getLottieDirection" in p && typeof p.getLottieDirection === "function"
+          ? p.getLottieDirection()
+          : (p.direction ?? null);
+        const loop = "getLottieLoop" in p && typeof p.getLottieLoop === "function"
+          ? p.getLottieLoop()
+          : (p.loop ?? null);
+        const mode = "getLottieMode" in p && typeof p.getLottieMode === "function"
+          ? p.getLottieMode()
+          : (p.mode ?? null);
+        const state = p.currentState || p.state || null;
+
+        overlayState.textContent = "state: " + (state || "unknown");
+
+        return {
+          state,
+          playback: { speed, direction, loop, mode }
+        };
+      }
+
+      function handlePlayerEvent(eventName, domEvent) {
+        const contextKey = ctxSelect.value;
+        const contextSlug = HubContextMap[contextKey] || contextKey.toLowerCase();
+        const snapshot = getPlayerSnapshot();
+        const timestamp = now();
+
+        const spectralPayload = {
+          type: "animation_" + eventName,
+          rawEvent: eventName,
+          context: contextSlug,
+          channel: "lottie-player",
+          timestamp,
+          stateSnapshot: snapshot,
+          detail: domEvent && domEvent.detail ? domEvent.detail : null
+        };
+
+        logSpectralEvent(spectralPayload);
+
+        if (spectralPayload.type === "animation_complete") {
+          logSpectralEvent({
+            type: "animation_complete_ack",
+            context: contextSlug,
+            channel: "lottie-player",
+            timestamp: now(),
+            lastState: snapshot
+          });
+        }
+        if (spectralPayload.type === "animation_error") {
+          logSpectralEvent({
+            type: "animation_error_alert",
+            context: contextSlug,
+            channel: "lottie-player",
+            timestamp: now(),
+            lastState: snapshot
+          });
+        }
+      }
+
+      function attachPlayerListeners() {
+        if (!player || !player.addEventListener) return;
+        const events = ["complete","destroyed","error","frame","freeze","pause","play","loop","ready"];
+        events.forEach(function (evName) {
+          player.addEventListener(evName, function (e) {
+            handlePlayerEvent(evName, e);
+          });
+        });
+        logSpectralEvent({
+          type: "bridge_started",
+          context: (HubContextMap[ctxSelect.value] || ctxSelect.value.toLowerCase()),
+          channel: "lottie-player",
+          timestamp: now(),
+          initialState: getPlayerSnapshot()
+        });
+      }
+
+      ctxSelect.addEventListener("change", updateContextSlug);
+
+      btnClear.addEventListener("click", function () {
+        eventLog.length = 0;
+        logEl.textContent = "# LottieSpecterBridge stream\n# Each line: { type, rawEvent, context, channel, timestamp, stateSnapshot }";
+      });
+
+      btnDump.addEventListener("click", function () {
+        const text = JSON.stringify(eventLog, null, 2);
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+          navigator.clipboard.writeText(text).catch(function () {});
+        }
+      });
+
+      updateContextSlug();
+      attachPlayerListeners();
+    })();
+  </script>
+</body>
+</html>
