@@ -1,0 +1,974 @@
+<!-- File: /aln-utilities/aln-phone-country-code-resolver.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ALN PhoneCountryCodeResolver · E.164 Utility</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <!--
+    PhoneCountryCodeResolver (ALN harness)
+
+    - Normalizes raw phone inputs into compact, E.164-like representations
+      using "+" plus digits only, up to 15 digits as recommended by ITU-T E.164. [web:31][web:32][web:35][web:38]
+    - Resolves country (ISO-3166-1 alpha-2) from dial code using a longest-prefix
+      matching dataset spanning NANP, EU, APAC, LATAM, MENA, and Africa. [web:36][web:39]
+    - Adds plausibility checks, test-number heuristics (555 and repeated digits)
+      for analytics and CRM quality filters. [web:35][web:37][web:40]
+  -->
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #020308;
+      --card: #050814;
+      --accent: #7bf5c2;
+      --accent-soft: rgba(123, 245, 194, 0.18);
+      --accent-2: #66aaff;
+      --text: #f5f7ff;
+      --muted: #a0acc6;
+      --border: #141b2b;
+      --radius-lg: 18px;
+      --radius-md: 12px;
+      --shadow-soft: 0 18px 48px rgba(0, 0, 0, 0.75);
+      --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at top, #101729 0, #020308 56%, #000 100%);
+      color: var(--text);
+      font-family: var(--font-sans);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: stretch;
+    }
+
+    .aln-root {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.6fr);
+      gap: 18px;
+      padding: 20px;
+      width: 100%;
+      max-width: 1240px;
+    }
+
+    @media (max-width: 960px) {
+      .aln-root {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    .aln-panel {
+      background: linear-gradient(145deg, rgba(8, 12, 24, 0.98), rgba(2, 4, 11, 0.98));
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-soft);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .aln-panel::before {
+      content: "";
+      position: absolute;
+      inset: -1px;
+      background:
+        radial-gradient(circle at 0 0, rgba(123, 245, 194, 0.22), transparent 55%),
+        radial-gradient(circle at 100% 100%, rgba(102, 170, 255, 0.18), transparent 55%);
+      mix-blend-mode: screen;
+      opacity: 0.8;
+      pointer-events: none;
+    }
+
+    .aln-panel-inner {
+      position: relative;
+      padding: 16px 18px 16px;
+      z-index: 1;
+    }
+
+    .aln-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .aln-title-block {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .aln-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      border: 1px solid rgba(123, 245, 194, 0.75);
+      background: linear-gradient(90deg, rgba(123, 245, 194, 0.16), rgba(102, 170, 255, 0.12));
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+    }
+
+    .aln-chip-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 5px rgba(123, 245, 194, 0.25);
+    }
+
+    .aln-title {
+      font-size: 18px;
+      font-weight: 620;
+      letter-spacing: 0.03em;
+    }
+
+    .aln-subtitle {
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .aln-mini-stats {
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      align-items: flex-end;
+    }
+
+    .aln-section-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--muted);
+      margin: 4px 0 6px;
+    }
+
+    .aln-block {
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(24, 32, 54, 0.98);
+      background:
+        radial-gradient(circle at top left, rgba(123, 245, 194, 0.14), transparent 62%),
+        linear-gradient(145deg, rgba(3, 6, 14, 0.96), rgba(4, 7, 16, 0.98));
+      padding: 10px 10px 9px;
+      margin-bottom: 10px;
+    }
+
+    .aln-block-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .aln-block-title {
+      font-size: 13px;
+      font-weight: 570;
+    }
+
+    .aln-block-meta {
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .aln-badge {
+      display: inline-flex;
+      padding: 2px 7px;
+      border-radius: 999px;
+      border: 1px solid rgba(123, 245, 194, 0.7);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+    }
+
+    .aln-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .aln-field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .aln-field label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .aln-input,
+    .aln-select {
+      border-radius: 999px;
+      border: 1px solid rgba(40, 52, 82, 0.98);
+      background:
+        radial-gradient(circle at top left, rgba(123, 245, 194, 0.14), transparent 60%),
+        rgba(5, 9, 18, 0.98);
+      color: var(--text);
+      font-size: 12px;
+      padding: 6px 9px;
+      outline: none;
+    }
+
+    .aln-input:focus,
+    .aln-select:focus {
+      border-color: rgba(123, 245, 194, 0.92);
+      box-shadow: 0 0 0 1px rgba(123, 245, 194, 0.5);
+    }
+
+    .aln-select {
+      appearance: none;
+      -webkit-appearance: none;
+      background-image:
+        linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+        linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+      background-position:
+        calc(100% - 13px) 10px,
+        calc(100% - 8px) 10px;
+      background-size: 5px 5px, 5px 5px;
+      background-repeat: no-repeat;
+      padding-right: 22px;
+    }
+
+    .aln-hint {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .aln-hint code {
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+
+    .aln-tag-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 4px;
+    }
+
+    .aln-tag {
+      border-radius: 999px;
+      border: 1px solid rgba(37, 48, 78, 0.98);
+      padding: 2px 7px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      background: rgba(2, 4, 10, 0.98);
+    }
+
+    .aln-tag[data-kind="region"] {
+      border-color: rgba(123, 245, 194, 0.85);
+      color: var(--accent);
+    }
+
+    .aln-tag[data-kind="quality"] {
+      border-color: rgba(248, 113, 113, 0.85);
+      color: #fecaca;
+    }
+
+    .aln-output-shell {
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(24, 33, 55, 0.98);
+      background:
+        radial-gradient(circle at 0 0, rgba(123, 245, 194, 0.14), transparent 60%),
+        rgba(3, 6, 12, 0.98);
+      padding: 10px;
+      display: grid;
+      grid-template-rows: minmax(120px, 1fr) minmax(120px, 1fr);
+      gap: 8px;
+    }
+
+    .aln-output-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .aln-output-card {
+      border-radius: 10px;
+      border: 1px solid rgba(24, 33, 55, 0.96);
+      background: rgba(5, 9, 18, 0.98);
+      padding: 7px 8px 6px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .aln-output-card h3 {
+      margin: 0 0 4px;
+      font-size: 12px;
+      color: var(--accent);
+    }
+
+    .aln-output-card dl {
+      margin: 0;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 2px 8px;
+    }
+
+    .aln-output-card dt {
+      opacity: 0.8;
+    }
+
+    .aln-output-card dd {
+      margin: 0;
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+
+    .aln-log {
+      border-radius: 10px;
+      border: 1px solid rgba(24, 33, 55, 0.96);
+      background: rgba(3, 6, 12, 0.98);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 6px 6px 4px;
+      color: #e5e7eb;
+      overflow: auto;
+      white-space: pre;
+    }
+
+    .aln-log-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .aln-log::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+
+    .aln-log::-webkit-scrollbar-thumb {
+      background: rgba(55, 65, 81, 0.9);
+      border-radius: 99px;
+    }
+
+    .aln-btn {
+      border-radius: 999px;
+      border: 1px solid rgba(37, 48, 78, 0.95);
+      background: rgba(8, 12, 24, 0.98);
+      color: var(--muted);
+      font-size: 11px;
+      padding: 3px 9px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .aln-btn:hover {
+      border-color: rgba(123, 245, 194, 0.85);
+      color: var(--accent);
+    }
+
+    .aln-btn-primary {
+      border-color: rgba(123, 245, 194, 0.9);
+      color: var(--accent);
+      background:
+        radial-gradient(circle at top left, rgba(123, 245, 194, 0.18), transparent 60%);
+    }
+  </style>
+</head>
+<body>
+  <main class="aln-root" role="main">
+    <!-- LEFT: Input + high-level settings -->
+    <section class="aln-panel" aria-label="PhoneCountryCodeResolver Inputs">
+      <div class="aln-panel-inner">
+        <header class="aln-header">
+          <div class="aln-title-block">
+            <div class="aln-chip">
+              <span class="aln-chip-dot" aria-hidden="true"></span>
+              <span>PhoneCountryCodeResolver</span>
+            </div>
+            <div class="aln-title">E.164 normalization &amp; region mapper</div>
+            <div class="aln-subtitle">Pure functions · deterministic · testable</div>
+          </div>
+          <div class="aln-mini-stats">
+            <span>8–15 digit E.164 envelope [web:31][web:32][web:35][web:38]</span>
+            <span>NANP · EU · APAC · LATAM · MENA · AFRICA [web:36][web:39]</span>
+          </div>
+        </header>
+
+        <div class="aln-section-label">Input</div>
+        <section class="aln-block" aria-label="Phone input and defaults">
+          <div class="aln-block-header">
+            <h2 class="aln-block-title">Raw phone string</h2>
+            <div class="aln-block-meta">
+              <span class="aln-badge">Normalization + resolution</span>
+            </div>
+          </div>
+          <div class="aln-grid">
+            <div class="aln-field">
+              <label for="aln-phone-raw">Raw value</label>
+              <input id="aln-phone-raw" class="aln-input" type="text" placeholder="e.g. (415) 555-0123 or +44 20 7946 0018" />
+            </div>
+            <div class="aln-field">
+              <label for="aln-phone-default-dial">Default dial code</label>
+              <input id="aln-phone-default-dial" class="aln-input" type="text" placeholder="+1, +44, etc. (optional)" />
+            </div>
+          </div>
+          <p class="aln-hint">
+            Numbers are stripped to "+" and digits and padded with a default country prefix where needed, following common E.164 conversion patterns. [web:35][web:38]
+          </p>
+        </section>
+
+        <div class="aln-section-label">Quality &amp; tests</div>
+        <section class="aln-block" aria-label="Quality and classification notes">
+          <div class="aln-block-header">
+            <h2 class="aln-block-title">Heuristics &amp; dashboards</h2>
+            <div class="aln-block-meta">
+              <span class="aln-badge">Test-number detection</span>
+            </div>
+          </div>
+          <p class="aln-hint">
+            E.164 plausibility is based on length (up to 15 digits) and leading "+", while test-number detection flags 555-like prefixes and repeated digits commonly used as placeholders. [web:31][web:32][web:35][web:40][web:37]
+          </p>
+          <div class="aln-tag-list" aria-hidden="true">
+            <span class="aln-tag" data-kind="quality">classification: valid_like</span>
+            <span class="aln-tag" data-kind="quality">classification: likely_test_number</span>
+            <span class="aln-tag" data-kind="quality">classification: implausible_e164</span>
+            <span class="aln-tag" data-kind="quality">classification: invalid_or_unresolved</span>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <!-- RIGHT: Outputs and JSON view -->
+    <section class="aln-panel" aria-label="Resolution outputs">
+      <div class="aln-panel-inner">
+        <header class="aln-header">
+          <div class="aln-title-block">
+            <div class="aln-chip">
+              <span class="aln-chip-dot" aria-hidden="true"></span>
+              <span>Resolve → Classify → Export</span>
+            </div>
+            <div class="aln-title">E.164 + country + region</div>
+            <div class="aln-subtitle">Analytics &amp; CRM-ready metadata</div>
+          </div>
+          <div class="aln-mini-stats">
+            <span>555 &amp; repeated-digit test-number heuristics [web:40][web:37]</span>
+            <span>IDD-prefix aware: 00 → "+" fallback [web:36]</span>
+          </div>
+        </header>
+
+        <section class="aln-block" aria-label="Run resolver">
+          <div class="aln-block-header">
+            <h2 class="aln-block-title">Run resolver</h2>
+            <div class="aln-block-meta">
+              <button class="aln-btn aln-btn-primary" type="button" id="aln-btn-run">
+                Resolve phone
+              </button>
+            </div>
+          </div>
+          <div class="aln-output-shell">
+            <div class="aln-output-grid">
+              <div class="aln-output-card" aria-label="Normalization and E.164">
+                <h3>Normalization &amp; E.164</h3>
+                <dl>
+                  <dt>normalized</dt>
+                  <dd id="aln-out-normalized">–</dd>
+                  <dt>e164</dt>
+                  <dd id="aln-out-e164">–</dd>
+                  <dt>plausibleE164</dt>
+                  <dd id="aln-out-plausible">–</dd>
+                </dl>
+              </div>
+              <div class="aln-output-card" aria-label="Country and region">
+                <h3>Country &amp; region</h3>
+                <dl>
+                  <dt>countryCode</dt>
+                  <dd id="aln-out-country">–</dd>
+                  <dt>dialCode</dt>
+                  <dd id="aln-out-dial">–</dd>
+                  <dt>region</dt>
+                  <dd id="aln-out-region">–</dd>
+                  <dt>nationalNumber</dt>
+                  <dd id="aln-out-national">–</dd>
+                </dl>
+              </div>
+            </div>
+
+            <div class="aln-output-grid">
+              <div class="aln-output-card" aria-label="Classification">
+                <h3>Classification</h3>
+                <dl>
+                  <dt>classification</dt>
+                  <dd id="aln-out-classification">–</dd>
+                  <dt>isLikelyTestNumber</dt>
+                  <dd id="aln-out-test-number">–</dd>
+                  <dt>source</dt>
+                  <dd id="aln-out-source">–</dd>
+                </dl>
+              </div>
+              <div class="aln-output-card" aria-label="Region helpers">
+                <h3>Region helpers</h3>
+                <dl>
+                  <dt>isNANP</dt>
+                  <dd id="aln-out-is-nanp">–</dd>
+                  <dt>isEU</dt>
+                  <dd id="aln-out-is-eu">–</dd>
+                  <dt>isAPAC</dt>
+                  <dd id="aln-out-is-apac">–</dd>
+                  <dt>isLATAM</dt>
+                  <dd id="aln-out-is-latam">–</dd>
+                  <dt>isMENA</dt>
+                  <dd id="aln-out-is-mena">–</dd>
+                  <dt>isAfrica</dt>
+                  <dd id="aln-out-is-africa">–</dd>
+                </dl>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div class="aln-section-label">JSON payload</div>
+        <section class="aln-block" aria-label="JSON payload view">
+          <div class="aln-log-header">
+            <span>getCalculatedPhoneCountryProperty(raw)</span>
+            <button class="aln-btn" type="button" id="aln-btn-copy-json">
+              Copy JSON
+            </button>
+          </div>
+          <pre class="aln-log" id="aln-json-log">
+{}</pre>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <!-- File: /aln-utilities/js/aln-phone-country-code-resolver.js -->
+  <script>
+    (function () {
+      "use strict";
+
+      // --- Dataset ------------------------------------------------------------
+
+      const DIALED_PREFIXES = [
+        // NANP
+        { countryCode: "US", dialCode: "+1", region: "NANP" },
+        { countryCode: "CA", dialCode: "+1", region: "NANP" },
+        { countryCode: "AG", dialCode: "+1-268", region: "NANP" },
+        { countryCode: "AI", dialCode: "+1-264", region: "NANP" },
+        { countryCode: "BB", dialCode: "+1-246", region: "NANP" },
+        { countryCode: "BM", dialCode: "+1-441", region: "NANP" },
+        { countryCode: "BS", dialCode: "+1-242", region: "NANP" },
+        { countryCode: "DM", dialCode: "+1-767", region: "NANP" },
+        { countryCode: "DO", dialCode: "+1-809", region: "NANP" },
+        { countryCode: "GD", dialCode: "+1-473", region: "NANP" },
+        { countryCode: "GU", dialCode: "+1-671", region: "NANP" },
+        { countryCode: "JM", dialCode: "+1-876", region: "NANP" },
+        { countryCode: "KN", dialCode: "+1-869", region: "NANP" },
+        { countryCode: "KY", dialCode: "+1-345", region: "NANP" },
+        { countryCode: "LC", dialCode: "+1-758", region: "NANP" },
+        { countryCode: "MP", dialCode: "+1-670", region: "NANP" },
+        { countryCode: "MS", dialCode: "+1-664", region: "NANP" },
+        { countryCode: "PR", dialCode: "+1-787", region: "NANP" },
+        { countryCode: "TT", dialCode: "+1-868", region: "NANP" },
+        { countryCode: "VC", dialCode: "+1-784", region: "NANP" },
+        { countryCode: "VG", dialCode: "+1-284", region: "NANP" },
+        { countryCode: "VI", dialCode: "+1-340", region: "NANP" },
+
+        // Europe major
+        { countryCode: "GB", dialCode: "+44", region: "EU" },
+        { countryCode: "FR", dialCode: "+33", region: "EU" },
+        { countryCode: "DE", dialCode: "+49", region: "EU" },
+        { countryCode: "IT", dialCode: "+39", region: "EU" },
+        { countryCode: "ES", dialCode: "+34", region: "EU" },
+        { countryCode: "NL", dialCode: "+31", region: "EU" },
+        { countryCode: "BE", dialCode: "+32", region: "EU" },
+        { countryCode: "CH", dialCode: "+41", region: "EU" },
+        { countryCode: "SE", dialCode: "+46", region: "EU" },
+        { countryCode: "NO", dialCode: "+47", region: "EU" },
+        { countryCode: "DK", dialCode: "+45", region: "EU" },
+        { countryCode: "PT", dialCode: "+351", region: "EU" },
+        { countryCode: "IE", dialCode: "+353", region: "EU" },
+        { countryCode: "FI", dialCode: "+358", region: "EU" },
+        { countryCode: "PL", dialCode: "+48", region: "EU" },
+        { countryCode: "CZ", dialCode: "+420", region: "EU" },
+        { countryCode: "AT", dialCode: "+43", region: "EU" },
+
+        // CIS
+        { countryCode: "RU", dialCode: "+7", region: "CIS" },
+        { countryCode: "KZ", dialCode: "+7", region: "CIS" },
+
+        // APAC
+        { countryCode: "CN", dialCode: "+86", region: "APAC" },
+        { countryCode: "IN", dialCode: "+91", region: "APAC" },
+        { countryCode: "JP", dialCode: "+81", region: "APAC" },
+        { countryCode: "KR", dialCode: "+82", region: "APAC" },
+        { countryCode: "HK", dialCode: "+852", region: "APAC" },
+        { countryCode: "SG", dialCode: "+65", region: "APAC" },
+        { countryCode: "AU", dialCode: "+61", region: "APAC" },
+        { countryCode: "NZ", dialCode: "+64", region: "APAC" },
+        { countryCode: "TH", dialCode: "+66", region: "APAC" },
+        { countryCode: "MY", dialCode: "+60", region: "APAC" },
+        { countryCode: "PH", dialCode: "+63", region: "APAC" },
+        { countryCode: "ID", dialCode: "+62", region: "APAC" },
+
+        // LATAM
+        { countryCode: "BR", dialCode: "+55", region: "LATAM" },
+        { countryCode: "MX", dialCode: "+52", region: "LATAM" },
+        { countryCode: "AR", dialCode: "+54", region: "LATAM" },
+        { countryCode: "CL", dialCode: "+56", region: "LATAM" },
+        { countryCode: "CO", dialCode: "+57", region: "LATAM" },
+        { countryCode: "PE", dialCode: "+51", region: "LATAM" },
+        { countryCode: "UY", dialCode: "+598", region: "LATAM" },
+        { countryCode: "PY", dialCode: "+595", region: "LATAM" },
+        { countryCode: "VE", dialCode: "+58", region: "LATAM" },
+
+        // Africa & Middle East
+        { countryCode: "ZA", dialCode: "+27", region: "AFRICA" },
+        { countryCode: "NG", dialCode: "+234", region: "AFRICA" },
+        { countryCode: "EG", dialCode: "+20", region: "AFRICA" },
+        { countryCode: "KE", dialCode: "+254", region: "AFRICA" },
+        { countryCode: "TZ", dialCode: "+255", region: "AFRICA" },
+        { countryCode: "MA", dialCode: "+212", region: "AFRICA" },
+        { countryCode: "SA", dialCode: "+966", region: "MENA" },
+        { countryCode: "AE", dialCode: "+971", region: "MENA" },
+        { countryCode: "IL", dialCode: "+972", region: "MENA" },
+        { countryCode: "TR", dialCode: "+90", region: "MENA" }
+      ];
+
+      const SORTED_DIALED_PREFIXES = DIALED_PREFIXES.slice().sort(function (a, b) {
+        const aDigits = a.dialCode.replace(/[^\d]/g, "");
+        const bDigits = b.dialCode.replace(/[^\d]/g, "");
+        return bDigits.length - aDigits.length;
+      });
+
+      // --- Helpers ------------------------------------------------------------
+
+      function stripNonDigits(value) {
+        return String(value).replace(/[^\d]/g, "");
+      }
+
+      function normalizePlusAndDigits(value) {
+        const trimmed = String(value).trim();
+        if (!trimmed) return "";
+        let result = "";
+        for (let i = 0; i < trimmed.length; i += 1) {
+          const ch = trimmed[i];
+          if (ch === "+") {
+            if (!result.includes("+")) {
+              result += ch;
+            }
+          } else if (ch >= "0" && ch <= "9") {
+            result += ch;
+          }
+        }
+        return result;
+      }
+
+      function isPlausibleE164(normalized) {
+        if (typeof normalized !== "string" || !normalized.startsWith("+")) {
+          return false;
+        }
+        const digits = stripNonDigits(normalized);
+        const length = digits.length;
+        // ITU E.164 allows up to 15 digits; many implementations treat ~8–15 as plausible. [web:31][web:32][web:35][web:38]
+        return length >= 8 && length <= 15;
+      }
+
+      function normalizePhoneInput(raw, defaultDialCode) {
+        if (raw == null) return "";
+        const trimmed = String(raw).trim();
+        if (!trimmed) return "";
+
+        if (trimmed.includes("+")) {
+          const plusDigits = normalizePlusAndDigits(trimmed);
+          return plusDigits || "";
+        }
+
+        const digitsOnly = stripNonDigits(trimmed);
+        if (!digitsOnly) return "";
+
+        if (defaultDialCode && String(defaultDialCode).startsWith("+")) {
+          const countryDigits = stripNonDigits(defaultDialCode);
+          return "+" + countryDigits + digitsOnly;
+        }
+
+        if (digitsOnly.startsWith("00")) {
+          // Convert common IDD "00" prefix into "+". [web:36]
+          return "+" + digitsOnly.slice(2);
+        }
+
+        return digitsOnly;
+      }
+
+      function resolvePhoneCountry(raw, options) {
+        options = options || {};
+        const normalized = normalizePhoneInput(raw, options.defaultDialCode || null);
+
+        if (!normalized) return null;
+        if (!normalized.startsWith("+")) return null;
+
+        const normalizedDigits = stripNonDigits(normalized);
+        if (!normalizedDigits) return null;
+
+        let bestMatch = null;
+
+        for (var i = 0; i < SORTED_DIALED_PREFIXES.length; i += 1) {
+          const entry = SORTED_DIALED_PREFIXES[i];
+          const dialDigits = stripNonDigits(entry.dialCode);
+          const candidate = "+" + dialDigits;
+          if (normalized.indexOf(candidate) === 0) {
+            if (
+              !bestMatch ||
+              dialDigits.length > stripNonDigits(bestMatch.dialCode).length
+            ) {
+              bestMatch = entry;
+            }
+          }
+        }
+
+        if (!bestMatch) {
+          return {
+            countryCode: null,
+            dialCode: null,
+            region: null,
+            nationalNumber: normalizedDigits,
+            e164: "+" + normalizedDigits,
+            normalized: normalized,
+            plausibleE164: isPlausibleE164(normalized),
+            source: "unmappedPrefix"
+          };
+        }
+
+        const bestDialDigits = stripNonDigits(bestMatch.dialCode);
+        const nationalNumber = normalizedDigits.slice(bestDialDigits.length);
+        const e164 = "+" + normalizedDigits;
+
+        return {
+          countryCode: bestMatch.countryCode,
+          dialCode: "+" + bestDialDigits,
+          region: bestMatch.region || null,
+          nationalNumber: nationalNumber,
+          e164: e164,
+          normalized: normalized,
+          plausibleE164: isPlausibleE164(e164),
+          source: "matchedPrefix"
+        };
+      }
+
+      function getPhoneCountryCode(raw, options) {
+        const resolved = resolvePhoneCountry(raw, options);
+        return resolved ? resolved.countryCode : null;
+      }
+
+      function getPhoneDialCode(raw, options) {
+        const resolved = resolvePhoneCountry(raw, options);
+        return resolved ? resolved.dialCode : null;
+      }
+
+      function getE164(raw, options) {
+        const resolved = resolvePhoneCountry(raw, options);
+        if (!resolved || !resolved.plausibleE164) return null;
+        return resolved.e164;
+      }
+
+      function getCalculatedPhoneCountryProperty(raw, options) {
+        const result = resolvePhoneCountry(raw, options);
+        if (!result) {
+          return {
+            countryCode: null,
+            dialCode: null,
+            region: null,
+            nationalNumber: null,
+            e164: null,
+            normalized: null,
+            plausibleE164: false,
+            source: "unresolved"
+          };
+        }
+        return result;
+      }
+
+      function isLikelyTestNumber(raw) {
+        if (!raw && raw !== 0) return false;
+        const digits = stripNonDigits(raw);
+        if (!digits) return false;
+
+        // 555 prefix frequently used as fictional/test in NANP. [web:40]
+        if (digits.indexOf("555") === 0) return true;
+
+        // Repeated single digit (e.g., 11111111) is a common placeholder pattern. [web:37]
+        if (/^(\d)\1{5,}$/.test(digits)) return true;
+
+        return false;
+      }
+
+      function classifyPhoneNumber(raw, options) {
+        const meta = getCalculatedPhoneCountryProperty(raw, options);
+
+        if (!meta.e164) {
+          return {
+            classification: "invalid_or_unresolved",
+            meta: meta
+          };
+        }
+
+        if (!meta.plausibleE164) {
+          return {
+            classification: "implausible_e164",
+            meta: meta
+          };
+        }
+
+        if (isLikelyTestNumber(raw)) {
+          return {
+            classification: "likely_test_number",
+            meta: meta
+          };
+        }
+
+        return {
+          classification: "valid_like",
+          meta: meta
+        };
+      }
+
+      function isRegion(raw, options, targetRegion) {
+        const resolved = resolvePhoneCountry(raw, options);
+        return resolved ? resolved.region === targetRegion : false;
+      }
+
+      function isNANP(raw, options) {
+        return isRegion(raw, options, "NANP");
+      }
+      function isEU(raw, options) {
+        return isRegion(raw, options, "EU");
+      }
+      function isAPAC(raw, options) {
+        return isRegion(raw, options, "APAC");
+      }
+      function isLATAM(raw, options) {
+        return isRegion(raw, options, "LATAM");
+      }
+      function isMENA(raw, options) {
+        return isRegion(raw, options, "MENA");
+      }
+      function isAfrica(raw, options) {
+        return isRegion(raw, options, "AFRICA");
+      }
+
+      // --- DOM wiring ---------------------------------------------------------
+
+      var rawInput = document.getElementById("aln-phone-raw");
+      var defaultDialInput = document.getElementById("aln-phone-default-dial");
+      var btnRun = document.getElementById("aln-btn-run");
+      var btnCopyJson = document.getElementById("aln-btn-copy-json");
+
+      var outNormalized = document.getElementById("aln-out-normalized");
+      var outE164 = document.getElementById("aln-out-e164");
+      var outPlausible = document.getElementById("aln-out-plausible");
+
+      var outCountry = document.getElementById("aln-out-country");
+      var outDial = document.getElementById("aln-out-dial");
+      var outRegion = document.getElementById("aln-out-region");
+      var outNational = document.getElementById("aln-out-national");
+
+      var outClassification = document.getElementById("aln-out-classification");
+      var outTestNumber = document.getElementById("aln-out-test-number");
+      var outSource = document.getElementById("aln-out-source");
+
+      var outIsNANP = document.getElementById("aln-out-is-nanp");
+      var outIsEU = document.getElementById("aln-out-is-eu");
+      var outIsAPAC = document.getElementById("aln-out-is-apac");
+      var outIsLATAM = document.getElementById("aln-out-is-latam");
+      var outIsMENA = document.getElementById("aln-out-is-mena");
+      var outIsAfrica = document.getElementById("aln-out-is-africa");
+
+      var jsonLog = document.getElementById("aln-json-log");
+
+      function runResolver() {
+        var raw = rawInput.value;
+        var defaultDial = defaultDialInput.value || null;
+        var options = { defaultDialCode: defaultDial };
+
+        var normalized = normalizePhoneInput(raw, defaultDial);
+        var meta = getCalculatedPhoneCountryProperty(raw, options);
+        var classification = classifyPhoneNumber(raw, options);
+
+        outNormalized.textContent = normalized || "null";
+        outE164.textContent = meta.e164 || "null";
+        outPlausible.textContent = String(meta.plausibleE164);
+
+        outCountry.textContent = meta.countryCode || "null";
+        outDial.textContent = meta.dialCode || "null";
+        outRegion.textContent = meta.region || "null";
+        outNational.textContent = meta.nationalNumber || "null";
+
+        outClassification.textContent = classification.classification;
+        outTestNumber.textContent = String(isLikelyTestNumber(raw));
+        outSource.textContent = meta.source || "unresolved";
+
+        outIsNANP.textContent = String(isNANP(raw, options));
+        outIsEU.textContent = String(isEU(raw, options));
+        outIsAPAC.textContent = String(isAPAC(raw, options));
+        outIsLATAM.textContent = String(isLATAM(raw, options));
+        outIsMENA.textContent = String(isMENA(raw, options));
+        outIsAfrica.textContent = String(isAfrica(raw, options));
+
+        var payload = {
+          raw: raw,
+          defaultDialCode: defaultDial,
+          normalized: normalized,
+          e164: meta.e164,
+          classification: classification.classification,
+          meta: meta,
+          regions: {
+            isNANP: isNANP(raw, options),
+            isEU: isEU(raw, options),
+            isAPAC: isAPAC(raw, options),
+            isLATAM: isLATAM(raw, options),
+            isMENA: isMENA(raw, options),
+            isAfrica: isAfrica(raw, options)
+          }
+        };
+
+        jsonLog.textContent = JSON.stringify(payload, null, 2);
+      }
+
+      btnRun.addEventListener("click", runResolver);
+
+      btnCopyJson.addEventListener("click", function () {
+        var text = jsonLog.textContent || "";
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+          navigator.clipboard.writeText(text).catch(function () {});
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
