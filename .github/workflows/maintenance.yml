@@ -1,0 +1,31 @@
+name: Repo Maintenance
+
+on:
+  schedule:
+    - cron: "0 5 * * 0"  # Weekly on Sunday
+  workflow_dispatch:
+
+jobs:
+  maintenance:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run integrity checks
+        run: node test/IntegrityEngine.test.js
+
+      - name: Run lightweight git maintenance
+        run: |
+          git config maintenance.auto false
+          git maintenance run --task=incremental-repack || echo "git maintenance not supported in this environment"
