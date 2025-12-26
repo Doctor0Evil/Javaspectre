@@ -1,0 +1,43 @@
+<!-- File: /aln-core/contracts/LottiePlayerContract.xml -->
+<ALN-LottiePlayerContract xmlns="https://aln.dev/schema/lottie">
+  <PlayMode>
+    <Mode name="Bounce" value="bounce" />
+    <Mode name="Normal" value="normal" />
+  </PlayMode>
+
+  <PlayerEvents>
+    <Event name="Complete" value="complete" />
+    <Event name="Destroyed" value="destroyed" />
+    <Event name="Error" value="error" />
+    <Event name="Frame" value="frame" />
+    <Event name="Freeze" value="freeze" />
+    <Event name="Load" value="load" />
+    <Event name="Loop" value="loop" />
+    <Event name="Pause" value="pause" />
+    <Event name="Play" value="play" />
+    <Event name="Ready" value="ready" />
+    <Event name="Rendered" value="rendered" />
+    <Event name="Stop" value="stop" />
+  </PlayerEvents>
+
+  <PlayerState>
+    <State name="Destroyed" value="destroyed" />
+    <State name="Error" value="error" />
+    <State name="Frozen" value="frozen" />
+    <State name="Loading" value="loading" />
+    <State name="Paused" value="paused" />
+    <State name="Playing" value="playing" />
+    <State name="Stopped" value="stopped" />
+  </PlayerState>
+
+  <meta>
+    <author>ALN-The Element Transformer</author>
+    <origin>src/animation/LottiePlayerContract.js</origin>
+    <description>
+      Contract schema mapping for ALN-compatible Lottie animation engine. Defines enum bindings
+      for playback mode, player events, and state transitions, structured for XML-driven interfaces
+      or declarative WebComponent player controls.
+    </description>
+    <version>1.0.0</version>
+  </meta>
+</ALN-LottiePlayerContract>
