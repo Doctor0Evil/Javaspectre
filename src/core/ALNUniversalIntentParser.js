@@ -1,22 +1,26 @@
 // Path: src/core/ALNUniversalIntentParser.js
-// ALNUniversalIntentParser: language-agnostic ALN syntax parsing and
-// workflow orchestration blueprinting (GitHub- and XR-ready).
+// ALNUniversalIntentParser:
+// Language-agnostic ALN intent parsing and workflow orchestration blueprint.
 
 export class ALNUniversalIntentParser {
   constructor(options = {}) {
     this.version = '1.0.0';
+
     this.defaultLocale =
       typeof options.defaultLocale === 'string' ? options.defaultLocale : 'en';
+
     this.supportedRunners = [
       'ubuntu-latest',
       'windows-latest',
       'macos-latest',
       'xr-edge-sim',
     ];
+
     this.defaultNodeVersion =
       typeof options.defaultNodeVersion === 'string'
         ? options.defaultNodeVersion
         : '20';
+
     this.mlIntegrationDefaults = {
       enabled: true,
       modelHint: 'aln-general-intent-v1',
@@ -26,8 +30,8 @@ export class ALNUniversalIntentParser {
   }
 
   /**
-   * Parse any-language instruction text into an ALN intent object.
-   * `rawText` may be English, Japanese, Spanish, etc.
+   * Parse natural-language text (any locale) into an ALN-spec-conformant
+   * document with intent, domain, constraints, environment, and artifacts.
    */
   parse(rawText, env = {}) {
     if (!rawText || typeof rawText !== 'string') {
@@ -41,32 +45,79 @@ export class ALNUniversalIntentParser {
     const tokens = this._tokenize(normalized);
     const hints = this._extractHints(tokens, normalized, locale);
 
-    const alnIntent = {
-      id: this._hashIntent(normalized),
+    const intentId = this._hashIntent(normalized);
+
+    const goal = this._inferGoal(normalized, hints);
+    const domain = this._inferDomain(normalized, hints);
+    const constraints = this._inferConstraints(normalized, hints, env);
+    const environment = this._inferEnvironment(env, hints);
+    const mlIntegration = this._buildMLIntegration(hints);
+    const xrProfile = this._buildXRProfile(hints);
+
+    const workflowPlan = this._buildWorkflowPlan({
+      id: intentId,
       locale,
-      rawText: normalized,
-      goal: this._inferGoal(normalized, hints),
-      domain: this._inferDomain(normalized, hints),
-      constraints: this._inferConstraints(normalized, hints, env),
-      environment: this._inferEnvironment(env, hints),
-      mlIntegration: this._buildMLIntegration(hints),
-      xrProfile: this._buildXRProfile(hints),
-      timestamps: {
-        createdAt: new Date().toISOString(),
+      goal,
+      domain,
+      constraints,
+      environment,
+      mlIntegration,
+      xrProfile,
+    });
+
+    const summary = this._buildSummary(
+      {
+        id: intentId,
+        locale,
+        goal,
+        domain,
+        constraints,
+        environment,
+        mlIntegration,
+        xrProfile,
+      },
+      workflowPlan,
+    );
+
+    const artifacts = {
+      workflowPlan,
+      virtualObjects: [],
+      transparencyTrail: {
+        planId: workflowPlan.id,
+        assumptions: [
+          'User intends to run ALN artifacts on a Git-based host.',
+          'JavaScript and Node.js are available for execution.',
+        ],
+        risks: [],
+        tradeoffs: [
+          'Optimized for GitHub-style workflows before other providers.',
+        ],
       },
     };
-
-    const workflowPlan = this._buildWorkflowPlan(alnIntent);
-    const summary = this._buildSummary(alnIntent, workflowPlan);
 
     return {
       type: 'ALNUniversalIntent',
       version: this.version,
-      alnIntent,
-      workflowPlan,
+      intent: {
+        id: intentId,
+        text: normalized,
+        locale,
+        goal,
+        tags: hints.tokens.slice(0, 12),
+      },
+      domain,
+      constraints,
+      environment,
+      mlIntegration,
+      xrProfile,
+      artifacts,
       summary,
     };
   }
+
+  // -----------------------------
+  // Locale and token handling
+  // -----------------------------
 
   _inferLocale(text, fallback) {
     const lower = text.toLowerCase();
@@ -138,6 +189,10 @@ export class ALNUniversalIntentParser {
     };
   }
 
+  // -----------------------------
+  // Intent semantics
+  // -----------------------------
+
   _inferGoal(text, hints) {
     const lower = hints.fullTextLower;
 
@@ -176,7 +231,6 @@ export class ALNUniversalIntentParser {
 
     const maxLatencyMs = hints.speedPriority ? 20 : 120;
     const preferGreenRunners = hints.sustainability || !!env.preferGreenRunners;
-
     const securityLevel = hints.highSecurity ? 'high' : 'standard';
 
     const runtime = {
@@ -193,6 +247,7 @@ export class ALNUniversalIntentParser {
       timeoutSeconds:
         typeof env.timeoutSeconds === 'number' ? env.timeoutSeconds : 900,
       runtime,
+      rawTextLower: lower,
     };
   }
 
@@ -232,6 +287,10 @@ export class ALNUniversalIntentParser {
     return safe;
   }
 
+  // -----------------------------
+  // ML and XR profiles
+  // -----------------------------
+
   _buildMLIntegration(hints) {
     if (!this.mlIntegrationDefaults.enabled || !hints.hasML) {
       return {
@@ -263,12 +322,7 @@ export class ALNUniversalIntentParser {
     return {
       optimizedForXR: true,
       displayTargets: ['headset', 'monitor-mirror'],
-      inputChannels: [
-        'controller',
-        'hand-tracking',
-        'gaze',
-        'voice-intent',
-      ],
+      inputChannels: ['controller', 'hand-tracking', 'gaze', 'voice-intent'],
       preferredRefreshHz: 90,
       maxMotionToPhotonLatencyMs: baselineLatency,
       environment: {
@@ -278,6 +332,10 @@ export class ALNUniversalIntentParser {
       },
     };
   }
+
+  // -----------------------------
+  // Workflow plan and summary
+  // -----------------------------
 
   _buildWorkflowPlan(alnIntent) {
     const steps = [];
@@ -387,6 +445,10 @@ export class ALNUniversalIntentParser {
       stepCount: workflowPlan.steps.length,
     };
   }
+
+  // -----------------------------
+  // Utilities
+  // -----------------------------
 
   _hashIntent(text) {
     let hash = 0;
