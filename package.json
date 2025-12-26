@@ -1,0 +1,24 @@
+{
+  "name": "javaspectre",
+  "version": "0.1.0",
+  "description": "Spectral-grade ALN framework for transforming conceptual uncertainty into executable JavaScript and replicable repositories.",
+  "type": "module",
+  "main": "src/core/ALNKernel.js",
+  "bin": {
+    "javaspectre": "src/cli/javaspectre.js"
+  },
+  "scripts": {
+    "test": "node test/ALNKernel.test.js && node test/SpectralHarvester.test.js && node test/IntegrityEngine.test.js",
+    "demo": "node examples/demo-manifesto.js"
+  },
+  "keywords": [
+    "spectral-ai",
+    "augmented-language-networks",
+    "repository-blueprint",
+    "javaspectre"
+  ],
+  "author": "Javaspectre Initiative",
+  "license": "Apache-2.0",
+  "dependencies": {},
+  "devDependencies": {}
+}
