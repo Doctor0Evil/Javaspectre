@@ -1,0 +1,12 @@
+{
+  "ALNSpec": {
+    "blueprintPath": "blueprints/ALNSpec.blueprint.json",
+    "implementationFiles": [
+      "src/core/ALNKernel.js",
+      "src/core/ALNUniversalIntentParser.js",
+      "src/core/SpectralEngine.js"
+    ],
+    "hashAlgorithm": "sha256",
+    "blueprintHash64": "2e4f7ac9c1d9f36bb0e845df8a9c3f6d4aa9f2b0de718f9137f4b8d6a32c0f5a"
+  }
+}
