@@ -1,25 +1,76 @@
+// Path: src/cli/javaspectre.js
+// Entry command; supports make, refine, replicate, inspect, and impact.
+
 #!/usr/bin/env node
-// javaspectre.js
-// Minimal CLI for harvesting a description into a RepoBlueprint JSON.
 
-import { SpectralHarvester } from '../core/SpectralHarvester.js';
+import { SpectralEngine } from "../core/SpectralEngine.js";
+import { runMake } from "./commands/make.js";
+import { runRefine } from "./commands/refine.js";
+import { runReplicate } from "./commands/replicate.js";
+import { runInspect } from "./commands/inspect.js";
+import { runImpact } from "./commands/impact.js";
 
-function main() {
-  const [, , ...args] = process.argv;
-
-  if (args.length === 0) {
-    console.error('Usage: javaspectre "<description>" [tag1 tag2 ...]');
-    process.exit(1);
-  }
-
-  const description = args[0];
-  const tags = args.slice(1);
-
-  const harvester = new SpectralHarvester();
-  const blueprint = harvester.harvestToRepoBlueprint({ description, tags });
-
-  // Emit JSON to stdout for piping into other tools.
-  process.stdout.write(JSON.stringify(blueprint.toJSON(), null, 2) + '\n');
+function printHelp() {
+  const lines = [
+    "Javaspectre CLI",
+    "",
+    "Usage:",
+    "  javaspectre <command> [args]",
+    "",
+    "Commands:",
+    "  make      Create or scaffold spectral repositories and blueprints.",
+    "  refine    Refine existing code into production-grade modules.",
+    "  replicate Generate or verify 24-hour replication manifests.",
+    "  inspect   Harvest DOM/API structures and phantom patterns.",
+    "  impact    Evaluate and simulate sustainability impact.",
+    "",
+    "Examples:",
+    "  javaspectre make \"sustainable energy analytics service\"",
+    "  javaspectre refine ./src/index.js",
+    "  javaspectre replicate ./",
+    "  javaspectre inspect ./examples/sample.html",
+    "  javaspectre impact 100000",
+    ""
+  ];
+  process.stdout.write(lines.join("\n"));
 }
 
-main();
+async function main() {
+  const [, , command, ...rest] = process.argv;
+  if (!command || command === "help" || command === "--help" || command === "-h") {
+    printHelp();
+    process.exit(0);
+  }
+
+  const engine = new SpectralEngine();
+
+  if (command === "make") {
+    await runMake(rest, engine);
+    return;
+  }
+  if (command === "refine") {
+    await runRefine(rest, engine);
+    return;
+  }
+  if (command === "replicate") {
+    await runReplicate(rest, engine);
+    return;
+  }
+  if (command === "inspect") {
+    await runInspect(rest, engine);
+    return;
+  }
+  if (command === "impact") {
+    await runImpact(rest, engine);
+    return;
+  }
+
+  process.stderr.write(`Unknown command: ${command}\n`);
+  printHelp();
+  process.exit(1);
+}
+
+main().catch((err) => {
+  process.stderr.write(`Error: ${err.message}\n`);
+  process.exit(1);
+});
