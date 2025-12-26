@@ -1,0 +1,123 @@
+<!-- File: /aln-bridges/LottieSpecterBridge.contract.xml -->
+<ALN-LottieSpecterBridgeContract xmlns="https://aln.dev/schema/spectral">
+  <Bridge id="LottieSpecterBridge" version="1.0.0">
+    <Description>
+      High-level bridge from &lt;lottie-player&gt; DOM events to a spectral analytics
+      stream compatible with FormSpecter / Javaspectre-style pipelines. Uses the
+      standard Lottie web component event surface (load, ready, play, pause, stop,
+      freeze, loop, complete, frame, error). [web:11][web:12][web:13][web:18]
+    </Description>
+
+    <SourceElement tag="lottie-player">
+      <Events>
+        <Event name="complete" domName="complete" />
+        <Event name="destroyed" domName="destroyed" />
+        <Event name="error" domName="error" />
+        <Event name="frame" domName="frame" />
+        <Event name="freeze" domName="freeze" />
+        <Event name="pause" domName="pause" />
+        <Event name="play" domName="play" />
+        <Event name="loop" domName="loop" />
+        <Event name="ready" domName="ready" />
+      </Events>
+      <Properties>
+        <Property name="speed" access="propertyOrMethod" />
+        <Property name="direction" access="propertyOrMethod" />
+        <Property name="loop" access="propertyOrProperty" />
+        <Property name="mode" access="propertyOrProperty" />
+        <Property name="currentState" fallback="state" />
+      </Properties>
+    </SourceElement>
+
+    <Options>
+      <Option name="context" type="string" default="null" />
+      <Option name="channel" type="string" default="default" />
+      <Option name="autoStart" type="boolean" default="true" />
+      <Option name="clock" type="function" default="performance.now||Date.now" />
+      <Option name="onSpectralEvent" type="function" default="noop" />
+    </Options>
+
+    <EventMap>
+      <Map from="complete" to="animation_complete" />
+      <Map from="destroyed" to="animation_destroyed" />
+      <Map from="error" to="animation_error" />
+      <Map from="frame" to="animation_frame" />
+      <Map from="freeze" to="animation_frozen" />
+      <Map from="pause" to="animation_paused" />
+      <Map from="play" to="animation_playing" />
+      <Map from="loop" to="animation_loop" />
+      <Map from="ready" to="animation_ready" />
+    </EventMap>
+
+    <SyntheticEvents>
+      <Event name="bridge_started">
+        <Payload>
+          <Field name="initialState" type="object" />
+        </Payload>
+      </Event>
+      <Event name="bridge_stopped">
+        <Payload>
+          <Field name="finalState" type="object" />
+        </Payload>
+      </Event>
+      <Event name="animation_complete_ack">
+        <Payload>
+          <Field name="source" type="string" fixed="bridge" />
+          <Field name="lastEvent" type="object" />
+        </Payload>
+      </Event>
+      <Event name="animation_error_alert">
+        <Payload>
+          <Field name="source" type="string" fixed="bridge" />
+          <Field name="lastEvent" type="object" />
+        </Payload>
+      </Event>
+    </SyntheticEvents>
+
+    <SpectralPayloadModel>
+      <Field name="type" type="string" />
+      <Field name="rawEvent" type="string" optional="true" />
+      <Field name="context" type="string" nullable="true" />
+      <Field name="channel" type="string" />
+      <Field name="timestamp" type="number" />
+      <Field name="stateSnapshot" type="object">
+        <Field name="state" type="string" nullable="true" />
+        <Field name="lastEvent" type="object" nullable="true" />
+        <Field name="playback" type="object">
+          <Field name="speed" type="number" nullable="true" />
+          <Field name="direction" type="number" nullable="true" />
+          <Field name="loop" type="booleanOrNumber" nullable="true" />
+          <Field name="mode" type="string" nullable="true" />
+        </Field>
+      </Field>
+      <Field name="detail" type="any" nullable="true" />
+    </SpectralPayloadModel>
+
+    <Controls>
+      <Method name="play" effect="delegateToPlayer.play" />
+      <Method name="pause" effect="delegateToPlayer.pause" />
+      <Method name="stopAnimation" effect="delegateToPlayer.stop" />
+      <Method name="seekTo" effect="delegateToPlayer.seek">
+        <Param name="progress" type="numberOrFrameIndex" />
+      </Method>
+      <Method name="setSpeed" effect="delegateToPlayer.setSpeedOrSpeedProp">
+        <Param name="speed" type="number" />
+      </Method>
+      <Method name="setDirection" effect="delegateToPlayer.setDirectionOrDirectionProp">
+        <Param name="direction" type="number" />
+      </Method>
+      <Method name="setLoop" effect="delegateToPlayer.loopProp">
+        <Param name="loop" type="booleanOrNumber" />
+      </Method>
+      <Method name="setMode" effect="delegateToPlayer.modeProp">
+        <Param name="mode" type="string" />
+      </Method>
+    </Controls>
+
+    <ALN>
+      <NoIDE>true</NoIDE>
+      <NoBackend>true</NoBackend>
+      <GreenEdgePreferred>true</GreenEdgePreferred>
+    </ALN>
+  </Bridge>
+</ALN-LottieSpecterBridgeContract>
