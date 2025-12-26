@@ -1,0 +1,122 @@
+{
+  "name": "@formspecter/core",
+  "version": "0.1.0",
+  "description": "Framework-agnostic form orchestration and validation engine with React bindings, domain blocking, and analytics-ready hooks.",
+  "keywords": [
+    "forms",
+    "validation",
+    "react",
+    "framework-agnostic",
+    "email-validation",
+    "domain-blocking",
+    "analytics",
+    "javascript",
+    "formspecter"
+  ],
+  "license": "Apache-2.0",
+  "author": {
+    "name": "FormSpecter Initiative",
+    "email": "formspecter@users.noreply.github.com"
+  },
+  "homepage": "https://github.com/your-org/formspecter#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-org/formspecter.git",
+    "directory": "packages/formspecter"
+  },
+  "bugs": {
+    "url": "https://github.com/your-org/formspecter/issues"
+  },
+
+  "type": "module",
+
+  "main": "dist/cjs/index.cjs",
+  "module": "dist/esm/index.js",
+  "types": "dist/types/index.d.ts",
+
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.cjs"
+    },
+    "./react": {
+      "types": "./dist/types/react.d.ts",
+      "import": "./dist/esm/react.js",
+      "require": "./dist/cjs/react.cjs"
+    }
+  },
+
+  "sideEffects": false,
+
+  "files": [
+    "dist/"
+  ],
+
+  "scripts": {
+    "clean": "rimraf dist",
+    "build:esm": "NODE_ENV=production babel src --out-dir dist/esm --extensions .js --source-maps",
+    "build:cjs": "NODE_ENV=production babel src --out-dir dist/cjs --extensions .js --source-maps --plugins @babel/plugin-transform-modules-commonjs",
+    "build:types": "tsc -p tsconfig.types.json",
+    "build": "npm run clean && npm run build:esm && npm run build:cjs && npm run build:types",
+    "lint": "eslint \"src/**/*.js\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build && npm test"
+  },
+
+  "peerDependencies": {
+    "react": ">=17.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+
+  "dependencies": {},
+  "devDependencies": {
+    "@babel/cli": "^7.26.0",
+    "@babel/core": "^7.26.0",
+    "@babel/preset-env": "^7.26.0",
+    "@babel/plugin-transform-modules-commonjs": "^7.26.0",
+    "eslint": "^9.0.0",
+    "rimraf": "^6.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.0.0"
+  },
+
+  "eslintConfig": {
+    "env": {
+      "browser": true,
+      "es2022": true,
+      "node": true
+    },
+    "extends": [
+      "eslint:recommended"
+    ],
+    "parserOptions": {
+      "ecmaVersion": 2022,
+      "sourceType": "module"
+    },
+    "rules": {
+      "no-unused-vars": [
+        "warn",
+        {
+          "argsIgnorePattern": "^_",
+          "varsIgnorePattern": "^_"
+        }
+      ],
+      "no-console": "off"
+    }
+  },
+
+  "engines": {
+    "node": ">=18.0.0"
+  },
+
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}
