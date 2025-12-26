@@ -3,7 +3,7 @@
 [![Status](https://img.shields.io/badge/status-experimental-purple?style=for-the-badge)](https://github.com/Doctor0Evil/Javaspectre)
 [![Language](https://img.shields.io/badge/code-JavaScript-yellow?style=for-the-badge&logo=javascript)](https://developer.mozilla.org/docs/Web/JavaScript)
 [![Focus](https://img.shields.io/badge/focus-deep__virtual--object__excavation-blueviolet?style=for-the-badge)](#deep-virtual-object-excavation)
-[![License](https://img.shields.io/badge/license-TBD-lightgrey?style=for-the-badge)](#license-and-contributions)
+[![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)](#license-and-contributions)
 
 Pronunciation: /ˌdʒɑː.vəˈspɛk.tər/
 
