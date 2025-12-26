@@ -1,0 +1,19 @@
+engine:
+  id: javaspectre-spectral-engine-v1
+  nodeVersion: "18.x"
+  forbidPlaceholders: true
+
+sustainability:
+  modelsDir: "./data/models"
+  sustainabilityModelFile: "sustainability.json"
+  impactPatternsFile: "impactPatterns.json"
+
+integrity:
+  roots:
+    - "src"
+    - "tests"
+  placeholderPatterns:
+    - "TODO"
+    - "TBD"
+    - "FIXME"
+    - "PLACEHOLDER"
