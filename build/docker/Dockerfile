@@ -1,0 +1,12 @@
+# Path: build/docker/Dockerfile
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install --only=production
+
+COPY . .
+
+CMD ["node", "src/core/SpectralEngine.js"]
