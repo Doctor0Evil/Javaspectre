@@ -1,0 +1,42 @@
+{
+  "name": "javaspectre-aln-support",
+  "displayName": "Javaspectre ALN Support",
+  "description": "Language support for Augmented Language Networks (ALN) documents used by Javaspectre and related tooling.",
+  "version": "0.1.0",
+  "publisher": "javaspectre",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters"
+  ],
+  "activationEvents": [
+    "onLanguage:aln",
+    "onCommand:javaspectre.aln.validateCurrent"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "aln",
+        "aliases": ["ALN", "Augmented Language Networks"],
+        "extensions": [".aln", ".aln.json"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "aln",
+        "scopeName": "source.aln",
+        "path": "./syntaxes/aln.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "javaspectre.aln.validateCurrent",
+        "title": "Javaspectre: Validate Current ALN Document"
+      }
+    ]
+  }
+}
