@@ -1,0 +1,131 @@
+{
+  "blueprintId": "aln-universal-intent-parser-v1",
+  "kind": "module-blueprint",
+  "name": "ALNUniversalIntentParser",
+  "description": "Language-agnostic ALN syntax parser that converts free-form natural language into structured ALN intents, workflow plans, and XR-ready profiles, designed for GitHub-compatible orchestration.",
+  "version": "1.0.0",
+  "modulePath": "src/core/ALNUniversalIntentParser.js",
+  "entryExport": "ALNUniversalIntentParser",
+  "runtime": {
+    "language": "JavaScript",
+    "moduleType": "es-module",
+    "minNodeVersion": "18.0.0",
+    "targetNodeVersion": "20.x"
+  },
+  "capabilities": {
+    "parsing": {
+      "anyLanguageIntentParsing": true,
+      "localeInference": true,
+      "tokenization": "whitespace-and-punctuation",
+      "hintExtraction": [
+        "github-orchestration",
+        "xr-optimization",
+        "ml-integration",
+        "sustainability",
+        "security",
+        "latency-priority"
+      ]
+    },
+    "alnIntent": {
+      "fields": [
+        "id",
+        "locale",
+        "rawText",
+        "goal",
+        "domain",
+        "constraints",
+        "environment",
+        "mlIntegration",
+        "xrProfile",
+        "timestamps"
+      ],
+      "constraintsFields": [
+        "maxLatencyMs",
+        "preferGreenRunners",
+        "securityLevel",
+        "retries",
+        "timeoutSeconds",
+        "runtime"
+      ],
+      "environmentFields": [
+        "requestedRunners",
+        "compatibleRunners",
+        "gitProvider",
+        "repoSlug",
+        "defaultBranch",
+        "environmentVariables"
+      ],
+      "mlIntegrationFields": [
+        "enabled",
+        "modelHint",
+        "telemetryTopic",
+        "feedbackChannel",
+        "modes"
+      ],
+      "xrProfileFields": [
+        "optimizedForXR",
+        "displayTargets",
+        "inputChannels",
+        "preferredRefreshHz",
+        "maxMotionToPhotonLatencyMs",
+        "environment"
+      ]
+    },
+    "workflowPlan": {
+      "provider": "github",
+      "defaultRunner": "ubuntu-latest",
+      "steps": [
+        "checkout",
+        "setup-node",
+        "install-deps",
+        "ml-telemetry-optional",
+        "xr-sim-optional",
+        "run-spectral"
+      ]
+    }
+  },
+  "placement": {
+    "repository": "Doctor0Evil/Javaspectre",
+    "recommendedPath": "src/core/ALNUniversalIntentParser.js",
+    "blueprintPath": "blueprints/ALNUniversalIntentParser.blueprint.json",
+    "ciIntegration": [
+      ".github/workflows/ci.yml",
+      ".github/workflows/auto-blueprint.yml"
+    ]
+  },
+  "verification": {
+    "hashAlgorithm": "sha256",
+    "hashEncoding": "hex",
+    "blueprintHash64": "9e3a1b7f4c2d98ab17f1d5834c0912bd56e3b8f4a5c2d9017e3f6c4a9b1d238f",
+    "cemPattern": {
+      "artifactType": "module",
+      "designFile": "blueprints/ALNUniversalIntentParser.blueprint.json",
+      "implementationFile": "src/core/ALNUniversalIntentParser.js",
+      "hashField": "blueprintHash64"
+    }
+  },
+  "audit": {
+    "allowListRunners": [
+      "ubuntu-latest",
+      "windows-latest",
+      "macos-latest",
+      "xr-edge-sim"
+    ],
+    "requiresTests": true,
+    "requiredTests": [
+      "ALNUniversalIntentParser parses multilingual intents",
+      "ALNUniversalIntentParser emits workflowPlan with at least checkout, setup-node, install-deps, run-spectral"
+    ]
+  },
+  "metadata": {
+    "createdAt": "2025-12-26T15:35:00Z",
+    "createdBy": "Javaspectre ALN system",
+    "tags": [
+      "aln-intent",
+      "workflow-orchestration",
+      "github-compatible",
+      "xr-optimized",
+      "ml-integration"
+    ]
+  }
+}
