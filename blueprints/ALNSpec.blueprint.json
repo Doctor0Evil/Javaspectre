@@ -1,0 +1,184 @@
+{
+  "blueprintId": "aln-spec-v1",
+  "kind": "language-specification",
+  "name": "Augmented Language Networks (ALN) – Intent Schema v1",
+  "version": "1.0.0",
+  "description": "Canonical ALN intent and plan schema for use across Javaspectre, GitHub workflows, AI chats, and Chromium/XR orchestration.",
+  "schema": {
+    "type": "object",
+    "required": ["intent", "domain", "constraints", "environment", "artifacts"],
+    "properties": {
+      "intent": {
+        "type": "object",
+        "required": ["id", "text", "locale", "goal"],
+        "properties": {
+          "id": { "type": "string" },
+          "text": { "type": "string" },
+          "locale": { "type": "string" },
+          "goal": { "type": "string" },
+          "tags": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      },
+      "domain": {
+        "type": "string",
+        "enum": [
+          "general_software",
+          "interactive_gaming",
+          "xr_systems",
+          "ml_pipelines",
+          "financial_systems",
+          "healthcare",
+          "sustainability",
+          "infrastructure"
+        ]
+      },
+      "constraints": {
+        "type": "object",
+        "required": ["maxLatencyMs", "runtime"],
+        "properties": {
+          "maxLatencyMs": { "type": "number" },
+          "preferGreenRunners": { "type": "boolean" },
+          "securityLevel": {
+            "type": "string",
+            "enum": ["standard", "high"]
+          },
+          "retries": { "type": "integer", "minimum": 0 },
+          "timeoutSeconds": { "type": "integer", "minimum": 0 },
+          "runtime": {
+            "type": "object",
+            "required": ["language", "nodeVersion"],
+            "properties": {
+              "language": { "type": "string", "const": "JavaScript" },
+              "nodeVersion": { "type": "string" },
+              "allowNativeModules": { "type": "boolean" }
+            }
+          }
+        }
+      },
+      "environment": {
+        "type": "object",
+        "required": [
+          "gitProvider",
+          "repoSlug",
+          "defaultBranch",
+          "compatibleRunners"
+        ],
+        "properties": {
+          "gitProvider": { "type": "string" },
+          "repoSlug": { "type": "string" },
+          "defaultBranch": { "type": "string" },
+          "compatibleRunners": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "environmentVariables": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          }
+        }
+      },
+      "artifacts": {
+        "type": "object",
+        "properties": {
+          "workflowPlan": {
+            "type": "object",
+            "required": ["id", "steps"],
+            "properties": {
+              "id": { "type": "string" },
+              "steps": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["id", "name", "runner"],
+                  "properties": {
+                    "id": { "type": "string" },
+                    "name": { "type": "string" },
+                    "runner": { "type": "string" },
+                    "actions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": ["kind"],
+                        "properties": {
+                          "kind": { "type": "string" },
+                          "uses": { "type": "string" },
+                          "run": { "type": "string" },
+                          "with": {
+                            "type": "object",
+                            "additionalProperties": { "type": "string" }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "virtualObjects": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "category", "fields"],
+              "properties": {
+                "id": { "type": "string" },
+                "category": { "type": "string" },
+                "fields": {
+                  "type": "object",
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "transparencyTrail": {
+            "type": "object",
+            "properties": {
+              "planId": { "type": "string" },
+              "assumptions": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "risks": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "tradeoffs": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "verification": {
+    "hashAlgorithm": "sha256",
+    "hashEncoding": "hex",
+    "blueprintHash64": "2e4f7ac9c1d9f36bb0e845df8a9c3f6d4aa9f2b0de718f9137f4b8d6a32c0f5a",
+    "cemPattern": {
+      "artifactType": "language-spec",
+      "designFile": "blueprints/ALNSpec.blueprint.json",
+      "implementationFiles": [
+        "src/core/ALNKernel.js",
+        "src/core/ALNUniversalIntentParser.js",
+        "src/core/SpectralEngine.js"
+      ],
+      "hashField": "blueprintHash64"
+    }
+  },
+  "metadata": {
+    "createdAt": "2025-12-26T15:41:00Z",
+    "createdBy": "Javaspectre ALN system",
+    "tags": [
+      "aln-language",
+      "intent-schema",
+      "github-integration",
+      "chromium-xr",
+      "virtual-object-harvesting"
+    ]
+  }
+}
