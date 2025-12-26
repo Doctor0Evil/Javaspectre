@@ -1,0 +1,36 @@
+{
+  "scopeName": "source.aln",
+  "name": "ALN",
+  "patterns": [
+    {
+      "match": "\"(intent|domain|constraints|environment|artifacts|workflowPlan|virtualObjects|transparencyTrail)\"\\s*:",
+      "name": "keyword.key.aln"
+    },
+    {
+      "match": "\"(id|text|locale|goal|tags|maxLatencyMs|preferGreenRunners|securityLevel|retries|timeoutSeconds|runtime|gitProvider|repoSlug|defaultBranch|compatibleRunners|environmentVariables)\"\\s*:",
+      "name": "variable.parameter.aln"
+    },
+    {
+      "match": "\"[^\"]*\"",
+      "name": "string.quoted.double.aln"
+    },
+    {
+      "match": "\\b(true|false|null)\\b",
+      "name": "constant.language.boolean.aln"
+    },
+    {
+      "match": "-?\\b[0-9]+(\\.[0-9]+)?\\b",
+      "name": "constant.numeric.aln"
+    },
+    {
+      "match": "[{}\\[\\]]",
+      "name": "punctuation.bracket.aln"
+    },
+    {
+      "match": "[:,]",
+      "name": "punctuation.separator.aln"
+    }
+  ],
+  "fileTypes": ["aln", "aln.json"],
+  "uuid": "f3c4423e-6d87-4c23-8e9a-1f2a2f41a001"
+}
