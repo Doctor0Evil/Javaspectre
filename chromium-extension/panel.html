@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Javaspectre Dev Lens Panel</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="panel">
+      <header class="panel-header">
+        <h1>Javaspectre Dev Lens</h1>
+        <button id="scan-page">Scan Page</button>
+      </header>
+
+      <main class="panel-main">
+        <section class="panel-section">
+          <h2>ALN Intent</h2>
+          <pre id="aln-intent" class="code-block"></pre>
+        </section>
+        <section class="panel-section">
+          <h2>Virtual Objects</h2>
+          <pre id="virtual-objects" class="code-block"></pre>
+        </section>
+      </main>
+    </div>
+
+    <script src="vendor/virtual-object-extractor.js"></script>
+    <script src="panel.js"></script>
+  </body>
+</html>
