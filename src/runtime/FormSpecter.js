@@ -14,14 +14,24 @@ export class FormSpecter {
       metrics: { firstContentfulPaintMs: null },
     };
 
-    this._fcpStart = performance && performance.now ? performance.now() : null;
-    queueMicrotask(() => this._markFirstContentfulPaint());
+    this._fcpStart = typeof performance !== "undefined" && performance.now
+      ? performance.now()
+      : null;
+
+    if (typeof queueMicrotask === "function") {
+      queueMicrotask(() => this._markFirstContentfulPaint());
+    } else {
+      setTimeout(() => this._markFirstContentfulPaint(), 0);
+    }
   }
 
   _markFirstContentfulPaint() {
     if (this.state.metrics.firstContentfulPaintMs !== null) return;
 
-    const now = performance && performance.now ? performance.now() : Date.now();
+    const now = typeof performance !== "undefined" && performance.now
+      ? performance.now()
+      : Date.now();
+
     if (this._fcpStart != null) {
       this.state.metrics.firstContentfulPaintMs = now - this._fcpStart;
       this._emitAnalytic("first_contentful_paint", {
