@@ -1,17 +1,17 @@
 {
   "name": "javaspectre",
   "version": "0.2.0",
-  "description": "Spectral-grade ALN framework that turns conceptual uncertainty into executable JavaScript, self-healing repositories, and sustainability-aware system blueprints.",
+  "description": "Spectral-grade ALN framework that transforms conceptual uncertainty into executable JavaScript, self-healing repositories, and sustainability-aware system blueprints.",
   "type": "module",
   "main": "src/core/SpectralEngine.js",
-{
   "bin": {
-    "javaspectre": "src/cli/javaspectre.js"
-  }
-},
+    "javaspectre": "src/cli/javaspectre.js",
+    "javaspectre-lint": "src/cli/javaspectre-lint.js"
+  },
   "scripts": {
     "test": "node tests/spectral.test.js && node tests/integrity.test.js && node tests/builder.test.js && node tests/harvester.test.js",
-    "lint": "node ./build/ci/lint-runner.cjs || echo \"Lint runner not yet wired; skipping.\"",
+    "lint": "node ./build/ci/lint-runner.cjs || echo 'Lint runner not yet wired; skipping.'",
+    "lint:aln": "javaspectre-lint src/core/ALNKernel.js",
     "demo:manifesto": "node examples/demo-manifesto.js",
     "demo:impact": "node examples/demo-impact.js",
     "cli:make": "node src/cli/commands/make.js",
