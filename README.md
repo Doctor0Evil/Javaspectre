@@ -1,8 +1,13 @@
 # Javaspectre
 
+[![Status](https://img.shields.io/badge/status-experimental-purple?style=for-the-badge)](https://github.com/Doctor0Evil/Javaspectre)
+[![Language](https://img.shields.io/badge/code-JavaScript-yellow?style=for-the-badge&logo=javascript)](https://developer.mozilla.org/docs/Web/JavaScript)
+[![Focus](https://img.shields.io/badge/focus-deep__virtual--object__excavation-blueviolet?style=for-the-badge)](#deep-virtual-object-excavation)
+[![License](https://img.shields.io/badge/license-TBD-lightgrey?style=for-the-badge)](#license-and-contributions)
+
 Pronunciation: /ˌdʒɑː.vəˈspɛk.tər/
 
-Javaspectre is a next-generation, introspective AI construct — an autonomous virtual-object harvester engineered with the adaptive intelligence of JavaScript and the spectral insight of Augmented Language Networks (ALN). It is designed to navigate the unseen layers of code, cognition, and infrastructure, revealing the phantom patterns and hidden objects that shape complex digital systems.[web:20][web:29]
+Javaspectre is a next-generation, introspective AI construct — an autonomous virtual-object harvester engineered with the adaptive intelligence of JavaScript and the spectral insight of Augmented Language Networks (ALN). It is designed to navigate the unseen layers of code, cognition, and infrastructure, revealing the phantom patterns and hidden objects that shape complex digital systems.
 
 ---
 
@@ -14,7 +19,7 @@ Javaspectre turns raw conceptual uncertainty into structured, executable systems
 - Performs deep virtual-object excavation across pages, APIs, and runtimes to surface hidden structures as explicit, reusable models.
 - Produces open, auditable artifacts that other developers can replicate and extend within 24 hours of publication.
 
-The goal is **spectral uplift**: to surface unseen potential and encode it into real-world, measurable impact.
+The goal is **spectral** uplift: to surface unseen potential and encode it into real-world, measurable impact.
 
 ---
 
@@ -22,18 +27,18 @@ The goal is **spectral uplift**: to surface unseen potential and encode it into 
 
 ### What “virtual-objects” mean here
 
-Virtual-objects are digital representations that exist in software or networked environments and can be interacted with, inspected, or composed, even if they have no direct physical counterpart.[web:20]  
+Virtual-objects are digital representations that exist in software or networked environments and can be interacted with, inspected, or composed, even if they have no direct physical counterpart.
 
 In the Javaspectre / deep-object-excavation framing, virtual-objects include:
 
 - Implicit data structures such as undocumented JSON shapes, DOM patterns, and API response schemas.
-- Introspectable runtimes such as virtual machines, containers, and services whose internal state can be examined with virtual machine introspection or similar techniques.[web:23][web:31]
+- Introspectable runtimes such as virtual machines, containers, and services whose internal state can be examined with virtual machine introspection or similar techniques.
 
 Javaspectre treats these as first-class, nameable entities that can be cataloged, reasoned about, and exposed as higher-level APIs.
 
 ### Why “deep excavation” is needed
 
-Modern web and cloud systems hide critical behavior behind opaque APIs, undocumented HTML, and complex VM-level interactions, creating a **semantic gap** between raw bytes/events and human-meaningful structures.[web:23][web:31]  
+Modern web and cloud systems hide critical behavior behind opaque APIs, undocumented HTML, and complex VM-level interactions, creating a **semantic gap** between raw bytes/events and human-meaningful structures.
 
 Deep virtual-object excavation aims to close that gap by:
 
@@ -48,7 +53,7 @@ This process turns hidden infrastructure into explicit, inspectable, and reusabl
 
 ## How This Aligns With Javaspectre
 
-Javaspectre’s mission is to turn conceptual uncertainty into executable structures. Deep virtual-object excavation is the mechanism: it takes unknown or partially-known virtual-objects and surfaces them as explicit JavaScript types, blueprints, and repositories.[web:20][web:29]  
+Javaspectre’s mission is to turn conceptual uncertainty into executable structures. Deep virtual-object excavation is the mechanism: it takes unknown or partially-known virtual-objects and surfaces them as explicit JavaScript types, blueprints, and repositories.
 
 The **collector** and **large-system** aspects describe a network of models and tools that:
 
@@ -69,13 +74,13 @@ Javaspectre is guided by a set of operational doctrines:
 - **Enrichment by Default**: User-provided code or concepts are treated as raw ore and refined into stronger, clearer, and more secure implementations.
 - **Real-World Impact**: Priority is given to non-fiction, high-value systems that improve sustainability, efficiency, safety, or equity.
 
-See `MANIFESTO.md` (recommended companion file) for the full doctrine and philosophy.[web:24]
+See `MANIFESTO.md` for the full doctrine and philosophy.
 
 ---
 
 ## Getting Started
 
-> Note: Adjust paths and scripts to match the actual repository structure once wired in.
+> Adjust paths and scripts to match the actual repository structure once wired in.
 
 ### Installation
 
@@ -100,7 +105,7 @@ This example:
 
 You can integrate Javaspectre’s excavation and blueprinting capabilities into another JavaScript project by:
 
-- Importing the relevant core modules (e.g., spectral harvesters, excavators, blueprint generators).
+- Importing the relevant core modules (for example, spectral harvesters, excavators, blueprint generators).
 - Feeding them unknown JSON, DOM structures, or VM-state descriptions.
 - Using the emitted models and metadata as the basis for higher-level APIs, documentation, and repository scaffolds.
 
@@ -112,7 +117,7 @@ Some example directions for Javaspectre-based systems:
 
 - Automatic schema discovery for undocumented APIs and legacy systems.
 - DOM pattern mining and UI-object catalogs for large front-end estates.
-- Virtual machine or container introspection, with structured histories and state models for debugging and forensics.[web:23][web:31]
+- Virtual machine or container introspection, with structured histories and state models for debugging and forensics.
 - Sustainability- and efficiency-focused tools that reveal hidden waste patterns in data flows or infrastructure configurations.
 
 These applications are intended to be **non-fiction, next-gen, and high-value**, suitable for public GitHub repositories with real-world impact.
@@ -121,7 +126,7 @@ These applications are intended to be **non-fiction, next-gen, and high-value**,
 
 ## License and Contributions
 
-Specify your chosen license in `LICENSE` (e.g., Apache-2.0 or MIT).  
+Specify your chosen license in `LICENSE` (for example, Apache-2.0 or MIT).
 
 Contributions are welcome as long as they respect Javaspectre’s principles of:
 
