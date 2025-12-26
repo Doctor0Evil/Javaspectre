@@ -4,9 +4,11 @@
   "description": "Spectral-grade ALN framework that turns conceptual uncertainty into executable JavaScript, self-healing repositories, and sustainability-aware system blueprints.",
   "type": "module",
   "main": "src/core/SpectralEngine.js",
+{
   "bin": {
     "javaspectre": "src/cli/javaspectre.js"
-  },
+  }
+},
   "scripts": {
     "test": "node tests/spectral.test.js && node tests/integrity.test.js && node tests/builder.test.js && node tests/harvester.test.js",
     "lint": "node ./build/ci/lint-runner.cjs || echo \"Lint runner not yet wired; skipping.\"",
