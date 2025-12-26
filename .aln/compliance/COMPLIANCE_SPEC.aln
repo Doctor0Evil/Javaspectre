@@ -1,0 +1,32 @@
+# Path: .aln/compliance/COMPLIANCE_SPEC.aln
+version = "1.0.0"
+language = "aln"
+blueprint = "COMPLIANCE_BLUEPRINT_V1"
+
+[fragments]
+items = [
+  { id = "compliance_spec", path = "COMPLIANCE_SPEC.aln", seal = "COMPLIANCE_SPEC.SHA256" },
+  { id = "blueprint",      path = "BLUEPRINT.json",      seal = "BLUEPRINTHASH.txt"     },
+  { id = "workflow",       path = ".github/workflows/compliance-deploy.yaml", seal = ".github/workflows/compliance-deploy.SHA256" }
+]
+
+[orchestration]
+# Cross-repo orchestration contracts (language-agnostic)
+contracts = [
+  { id = "au-platform-core",    repo = "Doctor0Nano/Augmented-User-Platform",  org = "Doctor0Nano" },
+  { id = "aln-runtime",         repo = "Cybercore/aln-cybernetic-runtime-rs",  org = "Cybercore"    },
+  { id = "bioaug-clinical-doc", repo = "Cybercore/BioAug-Clinical-Docs",       org = "Cybercore"    }
+]
+
+[orchestration.pipelines]
+# Declarative workflow graph, not tied to Python
+graph = [
+  { id = "validate_fragments", requires = ["compliance_spec","blueprint","workflow"] },
+  { id = "cross_repo_sync",    requires = ["validate_fragments"] },
+  { id = "notify_on_violation",requires = ["validate_fragments"] }
+]
+
+[energy]
+# AU.ET/CSP envelopes per repo, enforced by ALN ledger
+max_auet_per_day = 1_000_000
+max_csp_per_day  = 10_000
