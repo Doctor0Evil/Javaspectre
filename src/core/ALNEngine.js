@@ -1,110 +1,122 @@
 // Path: src/core/ALNEngine.js
 
 /**
- * ALNEngine
- *
- * A JavaScript-hosted Augmented Language Network runtime that:
- * - Turns natural-language intents into structured ALN plans.
- * - Treats ALN "modules" (like ThemeTokenMapper.aln) as first-class virtual-objects.
- * - Generates repository blueprints and executable JS skeletons from ALN specs.
- * - Executes ALN plans stepwise on live data for rapid prototyping.
- *
- * This is designed as the kind of "killer runtime" that could make ALN
- * the most useful and widely adopted programming meta-language.
+ * Hardened ALNEngine
+ * - Deterministic, auditable planning
+ * - Pluggable opKind registry
+ * - Safety-policy hooks for critical / BCI / neuromorphic / nanoswarm contexts
  */
 
 class ALNEngine {
   constructor(options = {}) {
     this.modelId = options.modelId || "aln-core-v1";
-    this.maxSteps = typeof options.maxSteps === "number" ? options.maxSteps : 32;
+    this.maxSteps =
+      typeof options.maxSteps === "number" ? options.maxSteps : 32;
     this.defaultLanguage = "JavaScript";
+
+    // Registry of step executors keyed by opKind
+    this.opRegistry = new Map();
+
+    // Register built-in operations
+    this._registerBuiltinOps();
+
+    // Optional external safety / policy hook:
+    // (steps, context, transparencyTrail) => { steps, transparencyTrail }
+    this.policyHook = options.policyHook || null;
   }
 
   // ---------------------------------------------------------------------------
-  // 1. Intent → Plan (core ALN move)
+  // 1. Intent → Plan
   // ---------------------------------------------------------------------------
 
-  /**
-   * High-level reasoning entrypoint.
-   * Turns an intent string + optional context into a normalized ALN plan.
-   *
-   * @param {string} intent
-   * @param {object} [context]
-   * @returns {{planId: string, steps: object[], transparencyTrail: object}}
-   */
   plan(intent, context = {}) {
     if (typeof intent !== "string" || !intent.trim()) {
       throw new Error("ALNEngine.plan: intent must be a non-empty string.");
     }
 
     const createdAt = new Date().toISOString();
-    const planId = this._hash(`${intent}:${createdAt}`);
-
     const normalizedContext = this._normalizeContext(context);
     const classifiers = this._classifyIntent(intent, normalizedContext);
     const steps = this._synthesizeSteps(intent, normalizedContext, classifiers);
 
-    const transparencyTrail = {
+    const planId = this._hash(
+      JSON.stringify({
+        intent,
+        classifiers,
+        createdAt
+      })
+    );
+
+    let transparencyTrail = {
       planId,
       modelId: this.modelId,
       intent,
       classifiers,
       context: normalizedContext,
       createdAt,
-      assumptions: this._deriveAssumptions(intent, normalizedContext, classifiers),
+      assumptions: this._deriveAssumptions(
+        intent,
+        normalizedContext,
+        classifiers
+      ),
       risks: this._deriveRisks(intent, normalizedContext),
       tradeoffs: this._deriveTradeoffs(intent, normalizedContext)
     };
 
-    return { planId, steps, transparencyTrail };
+    // Optional policy hook can rewrite steps / add risk tags
+    let finalSteps = steps;
+    if (typeof this.policyHook === "function") {
+      const policyResult = this.policyHook(steps, normalizedContext, transparencyTrail);
+      if (policyResult && Array.isArray(policyResult.steps)) {
+        finalSteps = policyResult.steps;
+      }
+      if (policyResult && policyResult.transparencyTrail) {
+        transparencyTrail = policyResult.transparencyTrail;
+      }
+    }
+
+    return { planId, steps: finalSteps, transparencyTrail };
   }
 
   // ---------------------------------------------------------------------------
-  // 2. ALN Module Introspection (ThemeTokenMapper-style)
+  // 2. ALN Module Introspection
   // ---------------------------------------------------------------------------
 
-  /**
-   * Introspect an ALN-style module description into a structural type graph.
-   * This allows JS tools to understand ALN modules (structs, fns, constants).
-   *
-   * @param {string} moduleName
-   * @param {object} alnModuleSpec - e.g., parsed from .aln definition
-   */
   introspectModule(moduleName, alnModuleSpec) {
     const structs = [];
     const functions = [];
     const constants = [];
 
     if (Array.isArray(alnModuleSpec.structs)) {
-      alnModuleSpec.structs.forEach((s) => {
+      for (const s of alnModuleSpec.structs) {
         structs.push({
-          name: s.name,
-          fields: s.fields || [],
-          doc: s.doc || ""
+          name: String(s.name || ""),
+          fields: Array.isArray(s.fields) ? s.fields : [],
+          doc: s.doc ? String(s.doc) : ""
         });
-      });
+      }
     }
 
     if (Array.isArray(alnModuleSpec.functions)) {
-      alnModuleSpec.functions.forEach((fn) => {
+      for (const fn of alnModuleSpec.functions) {
         functions.push({
-          name: fn.name,
-          params: fn.params || [],
-          returnType: fn.returnType || "any",
-          doc: fn.doc || ""
+          name: String(fn.name || ""),
+          params: Array.isArray(fn.params) ? fn.params : [],
+          returnType: fn.returnType ? String(fn.returnType) : "any",
+          doc: fn.doc ? String(fn.doc) : ""
         });
-      });
+      }
     }
 
     if (Array.isArray(alnModuleSpec.constants)) {
-      alnModuleSpec.constants.forEach((c) => {
+      for (const c of alnModuleSpec.constants) {
         constants.push({
-          name: c.name,
-          type: c.type || "any",
+          name: String(c.name || ""),
+          type: c.type ? String(c.type) : "any",
           value: c.value,
-          doc: c.doc || ""
+          doc: c.doc ? String(c.doc) : ""
         });
-      });
+      }
     }
 
     return {
@@ -121,16 +133,9 @@ class ALNEngine {
   }
 
   // ---------------------------------------------------------------------------
-  // 3. Repo Blueprint Generator (ALN → GitHub-ready JS repo)
+  // 3. Repo Blueprint Generator
   // ---------------------------------------------------------------------------
 
-  /**
-   * Generate a repo blueprint from an ALN module + intent.
-   *
-   * @param {string} intent
-   * @param {object} alnSpecGraph - result of introspectModule or combined specs
-   * @returns {{name: string, structure: object, replicationProfile: object}}
-   */
   generateRepoBlueprint(intent, alnSpecGraph) {
     const baseName = this._slug(
       intent
@@ -150,30 +155,20 @@ class ALNEngine {
       ".gitignore"
     ];
 
+    const moduleEntry = alnSpecGraph && alnSpecGraph.module
+      ? `${alnSpecGraph.module}.js`
+      : "ALNModule.js";
+
     const structure = {
       rootFiles: coreFiles,
       directories: {
         src: {
-          core: [
-            "ALNEngine.js",
-            `${alnSpecGraph.module || "ALNModule"}.js`
-          ],
-          blueprints: [
-            "RepoBlueprint.js",
-            "VirtualObjectMapper.js"
-          ],
-          cli: [
-            "aln-cli.js"
-          ]
+          core: ["ALNEngine.js", moduleEntry],
+          blueprints: ["RepoBlueprint.js", "VirtualObjectMapper.js"],
+          cli: ["aln-cli.js"]
         },
-        examples: [
-          "demo-aln-plan.js",
-          "demo-theme-mapper.js"
-        ],
-        test: [
-          "ALNEngine.test.js",
-          "ModuleContracts.test.js"
-        ]
+        examples: ["demo-aln-plan.js", "demo-theme-mapper.js"],
+        test: ["ALNEngine.test.js", "ModuleContracts.test.js"]
       }
     };
 
@@ -194,31 +189,41 @@ class ALNEngine {
   }
 
   // ---------------------------------------------------------------------------
-  // 4. Plan Executor (ALN steps → real JS operations)
+  // 4. Plan Executor
   // ---------------------------------------------------------------------------
 
-  /**
-   * Execute an ALN plan step-by-step on a given context.
-   * This is a minimal, pluggable runner; real systems can extend opKinds.
-   *
-   * @param {object[]} steps - plan steps from plan().steps
-   * @param {object} context
-   * @returns {{log: object[], finalContext: object}}
-   */
   executePlan(steps, context = {}) {
+    if (!Array.isArray(steps)) {
+      throw new Error("ALNEngine.executePlan: steps must be an array.");
+    }
+
     const ctx = { ...context };
     const log = [];
 
     for (let i = 0; i < steps.length && i < this.maxSteps; i++) {
       const step = steps[i];
-      const result = this._executeStep(step, ctx);
+      const executor = this.opRegistry.get(step.opKind);
+
+      if (!executor) {
+        log.push({
+          stepId: step.id || `step-${i}`,
+          description: step.description || "",
+          opKind: step.opKind,
+          resultSummary: `No registered handler for opKind=${step.opKind}`
+        });
+        continue;
+      }
+
+      const result = executor(step, ctx);
+
       log.push({
-        stepId: step.id,
-        description: step.description,
+        stepId: step.id || `step-${i}`,
+        description: step.description || "",
         opKind: step.opKind,
         resultSummary: result.summary
       });
-      if (result.mutatedContext) {
+
+      if (result.mutatedContext && typeof result.mutatedContext === "object") {
         Object.assign(ctx, result.mutatedContext);
       }
     }
@@ -231,9 +236,17 @@ class ALNEngine {
   // ---------------------------------------------------------------------------
 
   _normalizeContext(context) {
-    const safe = context && typeof context === "object" ? { ...context } : {};
+    const safe =
+      context && typeof context === "object" && !Array.isArray(context)
+        ? { ...context }
+        : {};
+
     if (!safe.language) safe.language = this.defaultLanguage;
-    if (!safe.requireCompleteness) safe.requireCompleteness = true;
+    if (typeof safe.requireCompleteness !== "boolean") {
+      safe.requireCompleteness = true;
+    }
+    if (!safe.domain) safe.domain = "general";
+
     return safe;
   }
 
@@ -241,17 +254,39 @@ class ALNEngine {
     const lower = intent.toLowerCase();
     const tags = [];
 
-    if (lower.includes("theme") || lower.includes("design token")) tags.push("theme-mapping");
-    if (lower.includes("repository") || lower.includes("repo")) tags.push("repo-scaffolding");
-    if (lower.includes("api")) tags.push("api-design");
-    if (lower.includes("badge") || lower.includes("shields")) tags.push("badge-generation");
-    if (lower.includes("virtual-object") || lower.includes("dom")) tags.push("virtual-object-extraction");
+    if (lower.includes("theme") || lower.includes("design token")) {
+      tags.push("theme-mapping");
+    }
+    if (lower.includes("repository") || lower.includes("repo")) {
+      tags.push("repo-scaffolding");
+    }
+    if (lower.includes("api")) {
+      tags.push("api-design");
+    }
+    if (lower.includes("badge") || lower.includes("shields")) {
+      tags.push("badge-generation");
+    }
+    if (lower.includes("virtual-object") || lower.includes("dom")) {
+      tags.push("virtual-object-extraction");
+    }
+    if (lower.includes("medical") || lower.includes("clinical")) {
+      tags.push("medical");
+    }
+    if (lower.includes("bci") || lower.includes("brain-computer")) {
+      tags.push("bci");
+    }
+    if (lower.includes("neuromorphic") || lower.includes("nanoswarm")) {
+      tags.push("neuromorphic");
+    }
 
     if (tags.length === 0) tags.push("general-architecture");
 
-    const complexity = lower.includes("multi-tenant") || lower.includes("distributed")
-      ? "high"
-      : "normal";
+    const complexity =
+      lower.includes("multi-tenant") ||
+      lower.includes("distributed") ||
+      lower.includes("federal")
+        ? "high"
+        : "normal";
 
     return { tags, complexity, language: context.language };
   }
@@ -264,7 +299,7 @@ class ALNEngine {
       opKind: "analyze",
       description: "Parse and summarize user intent.",
       outputs: {
-        summary: intent.trim().slice(0, 256),
+        summary: intent.trim().slice(0, 512),
         tags: classifiers.tags
       }
     });
@@ -273,9 +308,15 @@ class ALNEngine {
       steps.push({
         id: "design-theme-graph",
         opKind: "design-graph",
-        description: "Design virtual-object graph for theme tokens and color schemes.",
+        description:
+          "Design virtual-object graph for theme tokens and color schemes.",
         outputs: {
-          virtualObjects: ["ThemeScales", "ThemeTypography", "ColorSchemeSet", "ThemeTokenReport"]
+          virtualObjects: [
+            "ThemeScales",
+            "ThemeTypography",
+            "ColorSchemeSet",
+            "ThemeTokenReport"
+          ]
         }
       });
     }
@@ -286,7 +327,13 @@ class ALNEngine {
         opKind: "repo-blueprint",
         description: "Design repository structure aligned with ALN modules.",
         outputs: {
-          directories: ["src/core", "src/blueprints", "src/cli", "examples", "test"]
+          directories: [
+            "src/core",
+            "src/blueprints",
+            "src/cli",
+            "examples",
+            "test"
+          ]
         }
       });
     }
@@ -294,7 +341,8 @@ class ALNEngine {
     steps.push({
       id: "map-modules",
       opKind: "module-contracts",
-      description: "Define ALN module contracts (structs, functions, constants).",
+      description:
+        "Define ALN module contracts (structs, functions, constants).",
       outputs: {
         modules: ["ALNEngine", "VirtualObjectMapper", "DomainSpecificModule"]
       }
@@ -303,7 +351,7 @@ class ALNEngine {
     steps.push({
       id: "generate-artifacts",
       opKind: "artifact-plan",
-      description: "Plan generated artifacts (JS files, docs, tests).",
+      description: "Plan generated artifacts (language files, docs, tests).",
       outputs: {
         languages: [context.language || "JavaScript"],
         artifacts: ["JS modules", "README sections", "tests"]
@@ -313,7 +361,8 @@ class ALNEngine {
     steps.push({
       id: "replication-strategy",
       opKind: "replication",
-      description: "Ensure 24-hour replication strategy for the resulting system.",
+      description:
+        "Ensure 24-hour replication strategy for the resulting system.",
       outputs: {
         maxHours: 24,
         requiredSkills: ["Node.js", "Git", "basic CLI"],
@@ -321,18 +370,52 @@ class ALNEngine {
       }
     });
 
+    if (
+      classifiers.tags.some((t) =>
+        ["medical", "bci", "neuromorphic"].includes(t)
+      )
+    ) {
+      steps.push({
+        id: "safety-overlay",
+        opKind: "safety-policy",
+        description:
+          "Apply safety overlays and human-in-the-loop requirements for critical domains.",
+        outputs: {
+          requiresHumanReview: true,
+          prohibitedOps: ["self-modify", "hardware-direct-control"],
+          auditLevel: "strict"
+        }
+      });
+    }
+
     return steps;
   }
 
   _deriveAssumptions(intent, context, classifiers) {
     const assumptions = [];
 
-    assumptions.push("User wants ALN-style structured planning, not ad-hoc scripting.");
+    assumptions.push(
+      "User wants ALN-style structured planning, not ad-hoc scripting."
+    );
     assumptions.push(`Target language for artifacts is ${context.language}.`);
     if (classifiers.tags.includes("repo-scaffolding")) {
-      assumptions.push("User intends to publish code in a Git-based repository.");
+      assumptions.push(
+        "User intends to publish code in a Git-based repository."
+      );
     }
-    assumptions.push("A human maintainer will review and refine generated artifacts.");
+    assumptions.push(
+      "A human maintainer will review and refine generated artifacts."
+    );
+
+    if (
+      classifiers.tags.some((t) =>
+        ["medical", "bci", "neuromorphic"].includes(t)
+      )
+    ) {
+      assumptions.push(
+        "Safety-critical workflows require independent clinical and ethics review."
+      );
+    }
 
     return assumptions;
   }
@@ -340,12 +423,26 @@ class ALNEngine {
   _deriveRisks(intent, context) {
     const risks = [];
 
-    risks.push("Risk of over-generalizing ALN module contracts for simple use cases.");
+    risks.push(
+      "Risk of over-generalizing ALN module contracts for simple use cases."
+    );
     if (intent.toLowerCase().includes("critical")) {
-      risks.push("Safety-critical context requires additional human review and testing.");
+      risks.push(
+        "Safety-critical context requires additional human review and testing."
+      );
     }
     if (context.requireCompleteness) {
-      risks.push("Strict completeness may slow iteration if requirements are evolving.");
+      risks.push(
+        "Strict completeness may slow iteration if requirements are evolving."
+      );
+    }
+    if (
+      (context.domain || "").toLowerCase() === "medical" ||
+      intent.toLowerCase().includes("medical")
+    ) {
+      risks.push(
+        "Medical and clinical settings must comply with regulatory and patient-safety standards."
+      );
     }
 
     return risks;
@@ -359,57 +456,82 @@ class ALNEngine {
     ];
   }
 
-  _executeStep(step, ctx) {
-    switch (step.opKind) {
-      case "analyze":
-        return {
-          summary: `Intent parsed with tags: ${step.outputs.tags.join(", ")}`,
-          mutatedContext: {
-            intentSummary: step.outputs.summary,
-            intentTags: step.outputs.tags
-          }
-        };
-      case "design-graph":
-        return {
-          summary: `Designed theme virtual-object graph (${step.outputs.virtualObjects.join(", ")})`,
-          mutatedContext: {
-            virtualObjects: (ctx.virtualObjects || []).concat(step.outputs.virtualObjects)
-          }
-        };
-      case "repo-blueprint":
-        return {
-          summary: `Planned directories: ${step.outputs.directories.join(", ")}`,
-          mutatedContext: {
-            plannedDirectories: step.outputs.directories
-          }
-        };
-      case "module-contracts":
-        return {
-          summary: `Declared ALN modules: ${step.outputs.modules.join(", ")}`,
-          mutatedContext: {
-            alnModules: step.outputs.modules
-          }
-        };
-      case "artifact-plan":
-        return {
-          summary: `Artifact languages: ${step.outputs.languages.join(", ")}`,
-          mutatedContext: {
-            artifactPlan: step.outputs.artifacts
-          }
-        };
-      case "replication":
-        return {
-          summary: `Replication target: <= ${step.outputs.maxHours}h`,
-          mutatedContext: {
-            replicationProfile: step.outputs
-          }
-        };
-      default:
-        return {
-          summary: `No-op for opKind=${step.opKind}`,
-          mutatedContext: null
-        };
+  _registerBuiltinOps() {
+    this.opRegistry.set("analyze", (step, ctx) => ({
+      summary: `Intent parsed with tags: ${(step.outputs?.tags || []).join(
+        ", "
+      )}`,
+      mutatedContext: {
+        intentSummary: step.outputs?.summary,
+        intentTags: step.outputs?.tags || []
+      }
+    }));
+
+    this.opRegistry.set("design-graph", (step, ctx) => ({
+      summary: `Designed theme virtual-object graph (${(
+        step.outputs?.virtualObjects || []
+      ).join(", ")})`,
+      mutatedContext: {
+        virtualObjects: (ctx.virtualObjects || []).concat(
+          step.outputs?.virtualObjects || []
+        )
+      }
+    }));
+
+    this.opRegistry.set("repo-blueprint", (step) => ({
+      summary: `Planned directories: ${(step.outputs?.directories || []).join(
+        ", "
+      )}`,
+      mutatedContext: {
+        plannedDirectories: step.outputs?.directories || []
+      }
+    }));
+
+    this.opRegistry.set("module-contracts", (step) => ({
+      summary: `Declared ALN modules: ${(step.outputs?.modules || []).join(
+        ", "
+      )}`,
+      mutatedContext: {
+        alnModules: step.outputs?.modules || []
+      }
+    }));
+
+    this.opRegistry.set("artifact-plan", (step) => ({
+      summary: `Artifact languages: ${(step.outputs?.languages || []).join(
+        ", "
+      )}`,
+      mutatedContext: {
+        artifactPlan: step.outputs?.artifacts || []
+      }
+    }));
+
+    this.opRegistry.set("replication", (step) => ({
+      summary: `Replication target: <= ${step.outputs?.maxHours || "?"}h`,
+      mutatedContext: {
+        replicationProfile: step.outputs
+      }
+    }));
+
+    this.opRegistry.set("safety-policy", (step, ctx) => ({
+      summary: `Applied safety overlay (audit=${step.outputs?.auditLevel})`,
+      mutatedContext: {
+        safetyOverlay: {
+          requiresHumanReview: !!step.outputs?.requiresHumanReview,
+          prohibitedOps: step.outputs?.prohibitedOps || [],
+          auditLevel: step.outputs?.auditLevel || "normal"
+        }
+      }
+    }));
+  }
+
+  registerOp(opKind, fn) {
+    if (typeof opKind !== "string" || !opKind.trim()) {
+      throw new Error("ALNEngine.registerOp: opKind must be a non-empty string.");
     }
+    if (typeof fn !== "function") {
+      throw new Error("ALNEngine.registerOp: fn must be a function.");
+    }
+    this.opRegistry.set(opKind, fn);
   }
 
   _hash(input) {
