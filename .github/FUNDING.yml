@@ -1,0 +1,19 @@
+# FUNDING.yml – enables the Sponsor button for Javaspectre
+
+github:
+  - Doctor0Evil        # Primary individual sponsor target
+  - PerplexityLabs     # Example org; replace with real handle if available
+
+open_collective: javaspectre-initiative   # Create/adjust to your actual OC slug
+
+patreon: javaspectre_ai                   # Create/adjust to your Patreon handle
+
+ko_fi: javaspectre                        # Optional; rename or remove if unused
+
+tidelift:                                  # Optional; e.g. "npm/javaspectre"
+
+liberapay:                                 # Optional; e.g. "javaspectre"
+
+custom:
+  - https://github.com/sponsors/Doctor0Evil
+  - https://opencollective.com/javaspectre-initiative
