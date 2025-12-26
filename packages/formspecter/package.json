@@ -1,23 +1,27 @@
 {
-  "name": "@formspecter/core",
+  "name": "formspecter",
   "version": "0.1.0",
-  "description": "Framework-agnostic form orchestration and validation engine with React bindings, domain blocking, and analytics-ready hooks.",
+  "description": "Lightweight, framework-agnostic validation core with a React hook wrapper (useFormSpecter) for spectral form state and analytics.",
   "keywords": [
     "forms",
     "validation",
     "react",
+    "react-hooks",
     "framework-agnostic",
     "email-validation",
     "domain-blocking",
     "analytics",
+    "spectral",
     "javascript",
     "formspecter"
   ],
-  "license": "Apache-2.0",
+
+  "license": "MIT",
   "author": {
     "name": "FormSpecter Initiative",
     "email": "formspecter@users.noreply.github.com"
   },
+
   "homepage": "https://github.com/your-org/formspecter#readme",
   "repository": {
     "type": "git",
@@ -44,6 +48,16 @@
       "types": "./dist/types/react.d.ts",
       "import": "./dist/esm/react.js",
       "require": "./dist/cjs/react.cjs"
+    },
+    "./react/useFormSpecter": {
+      "types": "./dist/types/react.d.ts",
+      "import": "./dist/esm/react.js",
+      "require": "./dist/cjs/react.cjs"
+    },
+    "./core": {
+      "types": "./dist/types/core.d.ts",
+      "import": "./dist/esm/core.js",
+      "require": "./dist/cjs/core.cjs"
     }
   },
 
@@ -66,7 +80,7 @@
   },
 
   "peerDependencies": {
-    "react": ">=17.0.0"
+    "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0"
   },
   "peerDependenciesMeta": {
     "react": {
@@ -75,6 +89,7 @@
   },
 
   "dependencies": {},
+
   "devDependencies": {
     "@babel/cli": "^7.26.0",
     "@babel/core": "^7.26.0",
@@ -83,7 +98,9 @@
     "eslint": "^9.0.0",
     "rimraf": "^6.0.0",
     "typescript": "^5.7.0",
-    "vitest": "^2.0.0"
+    "vitest": "^2.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
   },
 
   "eslintConfig": {
