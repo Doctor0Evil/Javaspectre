@@ -1,0 +1,66 @@
+<!-- File: /formspecter/docs/ErrorCodeFlow.md.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>FormSpecter · Error Code Resolution Flow</title>
+</head>
+<body>
+<main>
+  <h1>FormSpecter Error Code Resolution Flow</h1>
+  <p>
+    This flowchart visualizes the sequence from a user’s form submission through
+    FormSpecter’s field-level validation, mapped error lookups, and finally
+    the localization layer that produces user-facing messages.
+  </p>
+
+  <h2>Flowchart</h2>
+  <pre><code>flowchart TD
+  A[User submits form] --> B[Field-level validation]
+  B --> C{Error condition?}
+  C -->|Email format bad| D[lookup 's' → "invalidEmailFormat"]
+  C -->|Domain blocked| E[lookup 'E' or 'v'/'_' → "forbiddenEmailDomain"/"manuallyBlockedEmailDomain"]
+  C -->|Number too small| F[lookup 'c' → "invalidNumberRangeTooSmall"]
+  C -->|Number too large| G[lookup 'u' → "invalidNumberRangeTooLarge"]
+  C -->|Missing required| H[lookup 'g' or 'h' → "required"]
+  C -->|Already unsubscribed| I[lookup 'y' → "resubscribeMessage"]
+  D & E & F & G & H & I --> J[High-level error code]
+  J --> K[Localization / UX layer]
+  K --> L[User sees friendly message]
+</code></pre>
+
+  <h2>How this maps to <code>FormSpecterErrorCodes.js</code></h2>
+  <p>
+    Each mapped symbol (<code>'s'</code>, <code>'E'</code>, <code>'c'</code>,
+    <code>'u'</code>, etc.) corresponds to a
+    <code>FormSpecterErrorCodes</code> constant. The validator layer emits
+    a compact code symbol during runtime, which is then resolved by the error
+    code map into a canonical error string that downstream UX or localization
+    components can consume.
+  </p>
+
+  <h2>Example resolution</h2>
+  <pre><code>
+  Input: "user@@example.com"
+  → Validation detects malformed email syntax
+  → Emits symbol 's'
+  → Lookup → FormSpecterErrorCodes.invalidEmailFormat
+  → Localized message: "Please enter a valid email address"
+</code></pre>
+
+  <pre><code>
+  Input: "banned@example.com"
+  → Validation detects domain block
+  → Emits symbol 'E'
+  → Lookup → FormSpecterErrorCodes.forbiddenEmailDomain
+  → Localized message: "This domain cannot be used here"
+</code></pre>
+
+  <p>
+    This structured mapping ensures consistent analytics, allows policies or
+    domain-level firewalls to feed back standardized error semantics, and
+    keeps UI strings safely decoupled from business logic.
+  </p>
+</main>
+</body>
+</html>
