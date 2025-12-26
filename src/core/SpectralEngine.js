@@ -5,7 +5,9 @@ import crypto from 'crypto';
 import ALNKernel from './ALNKernel.js';
 import SpectralHarvester from './SpectralHarvester.js';
 import IntegrityEngine from './IntegrityEngine.js';
+import TransparencyTrail from './TransparencyTrail.js';
 import VirtualObjectExcavator from './VirtualObjectExcavator.js';
+import ALNUniversalIntentParser from './ALNUniversalIntentParser.js';
 import {
   buildExecutionRecipe,
   listCapabilitiesSummary,
@@ -23,6 +25,8 @@ export class SpectralEngine {
     this.virtualObjectExcavator =
       options.virtualObjectExcavator ||
       new VirtualObjectExcavator({ includeDom: false });
+    this.alnParser =
+      options.alnParser || new ALNUniversalIntentParser();
     // this.sustainabilityCore =
     //   options.sustainabilityCore || new SustainabilityCore();
 
@@ -36,27 +40,50 @@ export class SpectralEngine {
   }
 
   /**
-   * High-level entrypoint: run a full spectral pass for a given intent.
+   * High-level entrypoint.
+   *
+   * Supports:
+   * - raw: `input` is a string intent; `env` optional → parsed to ALN document
+   * - structured: `input` is an ALN-style document:
+   *   { intent, domain, constraints, environment, artifacts }
+   *
    * Returns a SpectralRun object suitable for JSON serialization.
    *
-   * @param {string} intent
-   * @param {object} context
+   * @param {string|object} input
+   * @param {object} env
    * @returns {Promise<object>}
    */
-  async run(intent, context = {}) {
-    if (!intent || typeof intent !== 'string') {
-      throw new Error('SpectralEngine.run: intent must be a non-empty string.');
-    }
+  async run(input, env = {}) {
+    const alnDoc =
+      typeof input === 'string'
+        ? this.alnParser.parse(input, env)
+        : input;
+
+    this._validateAlnDoc(alnDoc);
 
     const startedAt = new Date().toISOString();
-    const runId = this.#hash(`${this.engineId}:${intent}:${startedAt}`);
+    const runId = this.#hash(`${this.engineId}:${alnDoc.intent.text}:${startedAt}`);
 
     const alnResult = this.alnKernel.reason(
-      intent,
-      this.defaultConstraints,
-      context,
+      alnDoc.intent.text,
+      {
+        language: alnDoc.constraints.runtime.language,
+        requireCompleteness: true,
+        forbidPlaceholders: true,
+        maxReplicationTimeHours: 24,
+      },
+      {
+        domain: alnDoc.domain,
+        environment: alnDoc.environment,
+      },
     );
-    const recipe = buildExecutionRecipe(intent);
+
+    // If domain-aware recipe builder is available, use it; otherwise fall back
+    // to capabilities module recipe builder using the raw intent text.
+    const recipe =
+      typeof this._buildExecutionRecipeFromDomain === 'function'
+        ? this._buildExecutionRecipeFromDomain(alnDoc)
+        : buildExecutionRecipe(alnDoc.intent.text);
 
     const capabilitySummaries = listCapabilitiesSummary();
     const capabilityIndex = new Map(
@@ -71,6 +98,8 @@ export class SpectralEngine {
       integrityFindings: [],
       transparencyTrails: [],
       extra: [],
+      virtualObjects:
+        (alnDoc.artifacts && alnDoc.artifacts.virtualObjects) || [],
     };
 
     for (const step of recipe.steps) {
@@ -84,7 +113,12 @@ export class SpectralEngine {
         entryModule: step.entryModule,
         startedAt: new Date().toISOString(),
         status: 'pending',
-        input: { intent, context },
+        input: {
+          alnIntentId: alnDoc.intent.id,
+          domain: alnDoc.domain,
+          intentText: alnDoc.intent.text,
+          environment: alnDoc.environment,
+        },
         output: null,
         error: null,
       };
@@ -93,8 +127,7 @@ export class SpectralEngine {
         const result = await this.executeCapabilityStep(
           step,
           capMeta,
-          intent,
-          context,
+          alnDoc,
           alnResult,
           artifacts,
         );
@@ -118,7 +151,8 @@ export class SpectralEngine {
       runId,
       startedAt,
       completedAt: new Date().toISOString(),
-      intent,
+      intentId: alnDoc.intent.id,
+      intentText: alnDoc.intent.text,
       constraints: this.defaultConstraints,
       alnPlan: {
         planId: alnResult.planId,
@@ -135,13 +169,22 @@ export class SpectralEngine {
 
     artifacts.transparencyTrails.push(transparencyTrail);
 
+    // Optionally embed transparency into external artifacts if desired
+    if (TransparencyTrail && typeof TransparencyTrail.embedInPackageJson === 'function') {
+      // hook point for future integration; left no-op by default
+    }
+
     return {
       type: 'SpectralRun',
       version: '0.2.0',
       runId,
       engineId: this.engineId,
-      intent,
-      context,
+      alnDocument: alnDoc,
+      intent: alnDoc.intent.text,
+      context: {
+        domain: alnDoc.domain,
+        environment: alnDoc.environment,
+      },
       startedAt,
       completedAt: transparencyTrail.completedAt,
       constraints: this.defaultConstraints,
@@ -154,17 +197,84 @@ export class SpectralEngine {
     };
   }
 
+  _validateAlnDoc(doc) {
+    if (!doc || typeof doc !== 'object') {
+      throw new Error('SpectralEngine.run: ALN document must be an object.');
+    }
+    if (!doc.intent || typeof doc.intent.text !== 'string') {
+      throw new Error('SpectralEngine.run: ALN document must include intent.text.');
+    }
+    if (!doc.constraints || !doc.constraints.runtime) {
+      throw new Error('SpectralEngine.run: ALN document missing constraints.runtime.');
+    }
+  }
+
+  _buildExecutionRecipeFromDomain(alnDoc) {
+    const steps = [];
+    const domain = alnDoc.domain;
+
+    // Always blueprint first
+    steps.push({
+      step: 1,
+      capabilityId: 'zero-config-repo-blueprinting',
+      capabilityName: 'Zero-Config Repo Blueprinting',
+      entryModule: 'src/capabilities/RepoBlueprinting.js',
+    });
+
+    // Domain-gated live virtual-object harvesting
+    if (domain === 'xr_systems' || domain === 'interactive_gaming') {
+      steps.push({
+        step: 2,
+        capabilityId: 'live-virtual-object-harvesting',
+        capabilityName: 'Live Virtual-Object Harvesting',
+        entryModule: 'src/capabilities/LiveVirtualHarvester.js',
+      });
+    }
+
+    // Always refine
+    steps.push({
+      step: steps.length + 1,
+      capabilityId: 'one-command-spectral-refinement',
+      capabilityName: 'One-Command Spectral Refinement',
+      entryModule: 'src/capabilities/SpectralRefiner.js',
+    });
+
+    // Always compute (or stub) sustainability impact
+    steps.push({
+      step: steps.length + 1,
+      capabilityId: 'sustainability-impact-calculator',
+      capabilityName: 'Sustainability Impact Calculator',
+      entryModule: 'src/capabilities/SustainabilityCore.js',
+    });
+
+    return {
+      id: `recipe-${alnDoc.intent.id}`,
+      steps,
+    };
+  }
+
   /**
    * Execute a single recipe step by delegating into the appropriate
    * internal orchestration path.
    */
-  async executeCapabilityStep(step, capMeta, intent, context, alnResult, artifacts) {
+  async executeCapabilityStep(step, capMeta, alnDoc, alnResult, artifacts) {
     const id = step.capabilityId;
+    const intentText = alnDoc.intent.text;
+    const context = {
+      domain: alnDoc.domain,
+      environment: alnDoc.environment,
+      tags: (alnDoc.artifacts && alnDoc.artifacts.tags) || [],
+      sources: (alnDoc.artifacts && alnDoc.artifacts.sources) || [],
+      sampleValue:
+        alnDoc.artifacts && Object.prototype.hasOwnProperty.call(alnDoc.artifacts, 'sampleValue')
+          ? alnDoc.artifacts.sampleValue
+          : null,
+    };
 
     if (id === 'zero-config-repo-blueprinting') {
       const harvester = new SpectralHarvester(this.alnKernel);
       const blueprint = harvester.harvestToRepoBlueprint(
-        intent,
+        intentText,
         context.tags || [],
       );
       const serialized = blueprint.toJSON();
@@ -173,9 +283,8 @@ export class SpectralEngine {
     }
 
     if (id === 'live-virtual-object-harvesting') {
-      const sampleValue = context.sampleValue || null;
       const excavation = this.virtualObjectExcavator.excavate({
-        value: sampleValue,
+        value: context.sampleValue,
         domRoot: null,
       });
       artifacts.excavations.push(excavation);
