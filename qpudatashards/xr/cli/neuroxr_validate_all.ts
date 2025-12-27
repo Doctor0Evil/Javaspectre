@@ -1,18 +1,19 @@
 // qpudatashards/xr/cli/neuroxr_validate_all.ts
-// NeuroXR full-repo validator CLI (no shortcuts).
+// NeuroXR validation CLI
 //
 // Responsibilities:
-// - Discover and validate all NeuroSignalChannel JSON files.
-// - Discover and validate all NeuroContextScene JSON files.
-// - Optionally sanity-check telemetry samples (if present).
-// - Print rich, human-readable diagnostics.
-// - Exit non-zero if any artifact fails, for CI integration.
+// - Discover and validate all NeuroSignalChannel JSON specs.
+// - Discover and validate all Neuro Context Scene JSON specs.
+// - Optionally validate telemetry and governance proposals (extensible).
+// - Print human-friendly diagnostics and machine-readable summary.
+// - Designed for both local dev and CI workflows.
 //
-// Run via ts-node (dev):
+// Run (from project root):
 //   npx ts-node qpudatashards/xr/cli/neuroxr_validate_all.ts
+//   npx ts-node qpudatashards/xr/cli/neuroxr_validate_all.ts --json
 //
-// Run after compilation:
-//   node dist/qpudatashards/xr/cli/neuroxr_validate_all.js
+// After build:
+//   node dist/qpudatashards/xr/cli/neuroxr_validate_all.js --json
 
 import fs from "fs";
 import path from "path";
@@ -24,54 +25,171 @@ import {
   NeuroSignalValidationResult,
 } from "../validators/neuro_signal_channel.validator.js";
 import { NeuroSignalChannel } from "../types/neuro_signal_channel.types.js";
-
-// These would be implemented analogously to the channel validator/schema.
 import {
   validateNeuroContextSceneDetailed,
   NeuroContextSceneValidationResult,
 } from "../validators/neuro_context_scene.validator.js";
-import { NeuroContextScene } from "../types/neuro_context_scene.types.d.js";
+import { NeuroContextScene } from "../types/neuro_context_scene.types.js";
 
-// Optionally ingest telemetry if present.
-import { validateNeuroXRTelemetryDetailed } from "../telemetry/neuroxr_telemetry_ingest.js";
+// ---------------------------------------------------------------------------
+// CLI options & environment
+// ---------------------------------------------------------------------------
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ---------------------------------------------------------------------------
-// Types for consolidated reporting
-// ---------------------------------------------------------------------------
+interface NeuroXRValidateAllOptions {
+  outputJson: boolean;
+  rootDir: string;
+}
 
-interface FileValidationSummary {
+interface NeuroXRFileValidationResult {
+  kind: "channel" | "scene" | "unknown";
   filePath: string;
-  kind: "channel" | "scene" | "telemetry";
   ok: boolean;
-  errorCount: number;
+  errors: {
+    instancePath: string;
+    schemaPath: string;
+    keyword: string;
+    message: string;
+  }[];
 }
 
-interface AggregateReport {
+interface NeuroXRValidationSummary {
+  ok: boolean;
   totalFiles: number;
-  totalValid: number;
-  totalInvalid: number;
-  byKind: {
-    channel: { total: number; valid: number; invalid: number };
-    scene: { total: number; valid: number; invalid: number };
-    telemetry: { total: number; valid: number; invalid: number };
-  };
+  channelFiles: number;
+  sceneFiles: number;
+  unknownFiles: number;
+  failedFiles: number;
+  results: NeuroXRFileValidationResult[];
+}
+
+/**
+ * Parse simple CLI flags. We deliberately keep this small and explicit
+ * instead of adding a heavy CLI framework to preserve clarity. [web:58]
+ */
+function parseCliArgs(argv: string[]): NeuroXRValidateAllOptions {
+  const args = argv.slice(2);
+  let outputJson = false;
+  let rootDir = process.cwd();
+
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i];
+    if (arg === "--json" || arg === "-j") {
+      outputJson = true;
+    } else if (arg === "--root" || arg === "-r") {
+      const value = args[i + 1];
+      if (!value) {
+        throw new Error("Missing value for --root");
+      }
+      rootDir = path.resolve(process.cwd(), value);
+      i += 1;
+    } else if (arg === "--help" || arg === "-h") {
+      printUsageAndExit();
+    } else {
+      // treat any non-flag arg as a root dir override for convenience
+      rootDir = path.resolve(process.cwd(), arg);
+    }
+  }
+
+  return { outputJson, rootDir };
+}
+
+function printUsageAndExit(): never {
+  const rel = path.relative(
+    process.cwd(),
+    path.resolve(
+      __dirname,
+      "../cli/neuroxr_validate_all.ts"
+    )
+  );
+  console.log("NeuroXR Validate All – XR.NeuroObjectForge/Javaspectre");
+  console.log("");
+  console.log("Usage:");
+  console.log(`  npx ts-node ${rel} [options]`);
+  console.log("");
+  console.log("Options:");
+  console.log("  --json, -j        Output machine-readable JSON summary");
+  console.log("  --root, -r PATH   Override root directory (default: CWD)");
+  console.log("  --help, -h        Show this help message");
+  console.log("");
+  console.log("Behavior:");
+  console.log("  - Scans qpudatashards/xr for:");
+  console.log("      * NeuroSignalChannel JSON files");
+  console.log("      * Neuro Context Scene JSON files (.neuro.json)");
+  console.log("  - Validates them using Ajv-based validators and neurorights checks.");
+  console.log("  - Exits with code 1 if any file fails.");
+  process.exit(0);
 }
 
 // ---------------------------------------------------------------------------
-// Utility helpers
+// File discovery
 // ---------------------------------------------------------------------------
 
-function resolveProjectRoot(): string {
-  // This CLI is at qpudatashards/xr/cli/, so project root is three levels up.
-  return path.resolve(__dirname, "..", "..", "..");
+/**
+ * Recursively walk a directory and collect JSON files.
+ * We avoid glob dependencies to keep the CLI lean and clear. [web:65]
+ */
+function walkJsonFiles(rootDir: string): string[] {
+  const results: string[] = [];
+
+  function walk(currentDir: string): void {
+    const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(currentDir, entry.name);
+      if (entry.isDirectory()) {
+        walk(fullPath);
+      } else if (entry.isFile() && entry.name.toLowerCase().endsWith(".json")) {
+        results.push(fullPath);
+      }
+    }
+  }
+
+  walk(rootDir);
+  return results;
 }
 
-function relativeToCwd(p: string): string {
-  return path.relative(process.cwd(), p);
+/**
+ * Identify if a JSON file is likely a NeuroSignalChannel, Neuro Context Scene,
+ * or something else, based on filename/location and minimal structural checks.
+ * This keeps validation routing explicit and predictable. [web:59]
+ */
+function inferFileKind(filePath: string, data: unknown): "channel" | "scene" | "unknown" {
+  const lower = filePath.toLowerCase();
+
+  if (lower.includes("neuro_signal_channel") || lower.includes("channel_")) {
+    return "channel";
+  }
+
+  if (lower.includes("scene") || lower.endsWith(".neuro.json")) {
+    return "scene";
+  }
+
+  // Optionally inspect minimal shape
+  if (typeof data === "object" && data !== null) {
+    const maybe = data as Record<string, unknown>;
+    if (
+      typeof maybe.modality === "string" &&
+      typeof maybe.frequency_band === "string" &&
+      typeof maybe.sampling_rate_hz === "number"
+    ) {
+      return "channel";
+    }
+    if (
+      typeof maybe.domain === "string" &&
+      Array.isArray(maybe.spatial_entities)
+    ) {
+      return "scene";
+    }
+  }
+
+  return "unknown";
 }
+
+// ---------------------------------------------------------------------------
+// Validation wiring
+// ---------------------------------------------------------------------------
 
 function readJsonFile(filePath: string): unknown {
   const raw = fs.readFileSync(filePath, "utf8");
@@ -84,225 +202,104 @@ function readJsonFile(filePath: string): unknown {
   }
 }
 
-/**
- * Recursively walk the repo and collect JSON files that match simple
- * naming patterns for NeuroXR artifacts.
- */
-function discoverJsonFiles(root: string): {
-  channels: string[];
-  scenes: string[];
-  telemetry: string[];
-} {
-  const channels: string[] = [];
-  const scenes: string[] = [];
-  const telemetry: string[] = [];
-
-  function walk(dir: string) {
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        // Skip node_modules and dist for performance & clarity.
-        if (
-          entry.name === "node_modules" ||
-          entry.name === "dist" ||
-          entry.name === ".git"
-        ) {
-          continue;
-        }
-        walk(fullPath);
-      } else if (entry.isFile() && entry.name.endsWith(".json")) {
-        if (entry.name.includes("channel_")) {
-          channels.push(fullPath);
-        } else if (entry.name.includes("scene") || entry.name.endsWith(".neuro.json")) {
-          scenes.push(fullPath);
-        } else if (entry.name.includes("telemetry")) {
-          telemetry.push(fullPath);
-        }
-      }
-    }
-  }
-
-  walk(root);
-  return { channels, scenes, telemetry };
-}
-
-// ---------------------------------------------------------------------------
-// Printing helpers
-// ---------------------------------------------------------------------------
-
-function printHeader(title: string): void {
-  console.log("");
-  console.log("================================================================");
-  console.log(title);
-  console.log("================================================================");
-}
-
-function printChannelResult(
-  filePath: string,
-  channel: NeuroSignalChannel | null,
-  result: NeuroSignalValidationResult
-): void {
-  const rel = relativeToCwd(filePath);
-
-  if (result.ok) {
-    console.log("──────────────────────────────────────────────────────────────");
-    console.log(`✔ NeuroSignalChannel VALID: ${rel}`);
-    if (channel) {
-      console.log(`  id:             ${channel.id}`);
-      console.log(`  modality:       ${channel.modality}`);
-      console.log(`  risk_level:     ${channel.risk_level}`);
-      console.log(`  privacy_level:  ${channel.privacy_level}`);
-      console.log(
-        `  purpose:        ${channel.purpose.substring(0, 80)}${
-          channel.purpose.length > 80 ? "…" : ""
-        }`
-      );
-    }
-    console.log("──────────────────────────────────────────────────────────────");
-  } else {
-    console.error("──────────────────────────────────────────────────────────────");
-    console.error(`✖ NeuroSignalChannel INVALID: ${rel}`);
-    if (channel) {
-      console.error(`  id (if present):       ${channel.id}`);
-      console.error(`  modality (if present): ${channel.modality}`);
-    }
-    if (result.errors.length === 0) {
-      console.error("  (No error details available.)");
-    } else {
-      console.error("  Errors:");
-      result.errors.forEach((err, idx) => {
-        const instPath = err.instancePath || "/";
-        console.error(
-          `    [${idx + 1}] path=${instPath} keyword=${err.keyword}\n` +
-            `        ${err.message} (schema: ${err.schemaPath})`
-        );
-      });
-    }
-    console.error("──────────────────────────────────────────────────────────────");
-  }
-}
-
-function printSceneResult(
-  filePath: string,
-  scene: NeuroContextScene | null,
-  result: NeuroContextSceneValidationResult
-): void {
-  const rel = relativeToCwd(filePath);
-
-  if (result.ok) {
-    console.log("──────────────────────────────────────────────────────────────");
-    console.log(`✔ NeuroContextScene VALID: ${rel}`);
-    if (scene) {
-      console.log(`  id:           ${scene.id}`);
-      console.log(`  domain:       ${scene.domain}`);
-      console.log(`  maxRiskLevel: ${scene.maxRiskLevel}`);
-      console.log(
-        `  description:  ${scene.description?.substring(0, 80) ?? ""}${
-          scene.description && scene.description.length > 80 ? "…" : ""
-        }`
-      );
-    }
-    console.log("──────────────────────────────────────────────────────────────");
-  } else {
-    console.error("──────────────────────────────────────────────────────────────");
-    console.error(`✖ NeuroContextScene INVALID: ${rel}`);
-    if (scene) {
-      console.error(`  id (if present):     ${scene.id}`);
-      console.error(`  domain (if present): ${scene.domain}`);
-    }
-    if (result.errors.length === 0) {
-      console.error("  (No error details available.)");
-    } else {
-      console.error("  Errors:");
-      result.errors.forEach((err, idx) => {
-        const instPath = err.instancePath || "/";
-        console.error(
-          `    [${idx + 1}] path=${instPath} keyword=${err.keyword}\n` +
-            `        ${err.message} (schema: ${err.schemaPath})`
-        );
-      });
-    }
-    console.error("──────────────────────────────────────────────────────────────");
-  }
-}
-
-function printTelemetryResult(filePath: string, ok: boolean, errors: string[]): void {
-  const rel = relativeToCwd(filePath);
-
-  if (ok) {
-    console.log("──────────────────────────────────────────────────────────────");
-    console.log(`✔ NeuroXR Telemetry VALID: ${rel}`);
-    console.log("──────────────────────────────────────────────────────────────");
-  } else {
-    console.error("──────────────────────────────────────────────────────────────");
-    console.error(`✖ NeuroXR Telemetry INVALID: ${rel}`);
-    if (errors.length === 0) {
-      console.error("  (No error details available.)");
-    } else {
-      console.error("  Errors:");
-      errors.forEach((msg, idx) => {
-        console.error(`    [${idx + 1}] ${msg}`);
-      });
-    }
-    console.error("──────────────────────────────────────────────────────────────");
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Aggregate reporting
-// ---------------------------------------------------------------------------
-
-function buildInitialReport(): AggregateReport {
+function validateChannelFile(filePath: string, data: unknown): NeuroXRFileValidationResult {
+  const result: NeuroSignalValidationResult =
+    validateNeuroSignalChannelDetailed(data);
   return {
-    totalFiles: 0,
-    totalValid: 0,
-    totalInvalid: 0,
-    byKind: {
-      channel: { total: 0, valid: 0, invalid: 0 },
-      scene: { total: 0, valid: 0, invalid: 0 },
-      telemetry: { total: 0, valid: 0, invalid: 0 },
-    },
+    kind: "channel",
+    filePath,
+    ok: result.ok,
+    errors: result.errors,
   };
 }
 
-function updateReport(report: AggregateReport, summary: FileValidationSummary): void {
-  report.totalFiles += 1;
-  report.byKind[summary.kind].total += 1;
+function validateSceneFile(filePath: string, data: unknown): NeuroXRFileValidationResult {
+  const result: NeuroContextSceneValidationResult =
+    validateNeuroContextSceneDetailed(data);
+  return {
+    kind: "scene",
+    filePath,
+    ok: result.ok,
+    errors: result.errors,
+  };
+}
 
-  if (summary.ok) {
-    report.totalValid += 1;
-    report.byKind[summary.kind].valid += 1;
+function printFileResultHuman(result: NeuroXRFileValidationResult): void {
+  const rel = path.relative(process.cwd(), result.filePath);
+  const headerLine =
+    result.kind === "channel"
+      ? "NeuroSignalChannel"
+      : result.kind === "scene"
+      ? "NeuroContextScene"
+      : "Unknown";
+
+  if (result.ok) {
+    console.log("──────────────────────────────────────────────────────────────");
+    console.log(`✔ ${headerLine} VALID: ${rel}`);
+    console.log("──────────────────────────────────────────────────────────────");
   } else {
-    report.totalInvalid += 1;
-    report.byKind[summary.kind].invalid += 1;
+    console.error("──────────────────────────────────────────────────────────────");
+    console.error(`✖ ${headerLine} INVALID: ${rel}`);
+    if (result.errors.length === 0) {
+      console.error("  (No error details available.)");
+    } else {
+      console.error("  Errors:");
+      result.errors.forEach((err, idx) => {
+        const pathStr = err.instancePath || "/";
+        console.error(
+          `    [${idx + 1}] path=${pathStr} keyword=${err.keyword}\n` +
+            `        ${err.message} (schema: ${err.schemaPath})`
+        );
+      });
+    }
+    console.error("──────────────────────────────────────────────────────────────");
   }
 }
 
-function printAggregateReport(report: AggregateReport): void {
-  printHeader("NeuroXR Validation Summary");
+// ---------------------------------------------------------------------------
+// Summary computation
+// ---------------------------------------------------------------------------
 
-  console.log(`Total files checked:   ${report.totalFiles}`);
-  console.log(`Total valid:           ${report.totalValid}`);
-  console.log(`Total invalid:         ${report.totalInvalid}`);
+function summarizeResults(results: NeuroXRFileValidationResult[]): NeuroXRValidationSummary {
+  let totalFiles = results.length;
+  let channelFiles = 0;
+  let sceneFiles = 0;
+  let unknownFiles = 0;
+  let failedFiles = 0;
+
+  for (const r of results) {
+    if (!r.ok) failedFiles += 1;
+    if (r.kind === "channel") channelFiles += 1;
+    else if (r.kind === "scene") sceneFiles += 1;
+    else unknownFiles += 1;
+  }
+
+  return {
+    ok: failedFiles === 0,
+    totalFiles,
+    channelFiles,
+    sceneFiles,
+    unknownFiles,
+    failedFiles,
+    results,
+  };
+}
+
+function printSummaryHuman(summary: NeuroXRValidationSummary): void {
   console.log("");
+  console.log("NeuroXR Validation Summary");
+  console.log("──────────────────────────────────────────────────────────────");
+  console.log(`  Total JSON files scanned:   ${summary.totalFiles}`);
+  console.log(`  Channel spec files:         ${summary.channelFiles}`);
+  console.log(`  Scene context files:        ${summary.sceneFiles}`);
+  console.log(`  Unknown JSON files:         ${summary.unknownFiles}`);
+  console.log(`  Failed files:               ${summary.failedFiles}`);
+  console.log("──────────────────────────────────────────────────────────────");
 
-  console.log("By kind:");
-  console.log(
-    `  NeuroSignalChannel: total=${report.byKind.channel.total}, valid=${report.byKind.channel.valid}, invalid=${report.byKind.channel.invalid}`
-  );
-  console.log(
-    `  NeuroContextScene:  total=${report.byKind.scene.total}, valid=${report.byKind.scene.valid}, invalid=${report.byKind.scene.invalid}`
-  );
-  console.log(
-    `  Telemetry:          total=${report.byKind.telemetry.total}, valid=${report.byKind.telemetry.valid}, invalid=${report.byKind.telemetry.invalid}`
-  );
-
-  console.log("");
-  if (report.totalInvalid === 0) {
-    console.log("Status: ✔ All NeuroXR artifacts passed validation.");
+  if (summary.ok) {
+    console.log("✅ All NeuroXR definitions passed schema and neurorights validation.");
   } else {
-    console.log("Status: ✖ Some NeuroXR artifacts failed validation. See logs above.");
+    console.error("❌ One or more NeuroXR definitions failed validation. See logs above.");
   }
 }
 
@@ -311,122 +308,78 @@ function printAggregateReport(report: AggregateReport): void {
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
-  const projectRoot = resolveProjectRoot();
-  printHeader("NeuroXR Full Repository Validation");
-  console.log(`Project root: ${projectRoot}`);
-  console.log("");
+  const options = parseCliArgs(process.argv);
+  const xrRoot = path.resolve(options.rootDir, "qpudatashards", "xr");
 
-  const discovered = discoverJsonFiles(projectRoot);
-  const report = buildInitialReport();
+  if (!fs.existsSync(xrRoot) || !fs.statSync(xrRoot).isDirectory()) {
+    throw new Error(
+      `XR root not found at "${xrRoot}". Ensure you're in the project root or use --root.`
+    );
+  }
 
-  // 1. Validate all NeuroSignalChannel JSON files.
-  printHeader("Step 1 – Validating NeuroSignalChannel JSON files");
-  if (discovered.channels.length === 0) {
-    console.log("No channel_*.json files found. (This may be expected in early stages.)");
-  } else {
-    for (const filePath of discovered.channels) {
-      try {
-        const data = readJsonFile(filePath);
-        const detailed = validateNeuroSignalChannelDetailed(data);
-        const channel = detailed.ok ? (data as NeuroSignalChannel) : null;
+  const jsonFiles = walkJsonFiles(xrRoot);
+  if (jsonFiles.length === 0) {
+    console.warn(`No JSON files found under "${xrRoot}". Nothing to validate.`);
+    process.exitCode = 0;
+    return;
+  }
 
-        printChannelResult(filePath, channel, detailed);
+  const results: NeuroXRFileValidationResult[] = [];
 
-        updateReport(report, {
+  for (const filePath of jsonFiles) {
+    try {
+      const data = readJsonFile(filePath);
+      const kind = inferFileKind(filePath, data);
+
+      let fileResult: NeuroXRFileValidationResult;
+      if (kind === "channel") {
+        fileResult = validateChannelFile(filePath, data);
+      } else if (kind === "scene") {
+        fileResult = validateSceneFile(filePath, data);
+      } else {
+        // Skip validation for unknown JSON; mark as ok but unknown kind.
+        fileResult = {
+          kind: "unknown",
           filePath,
-          kind: "channel",
-          ok: detailed.ok,
-          errorCount: detailed.errors.length,
-        });
-      } catch (err) {
-        console.error("──────────────────────────────────────────────────────────────");
-        console.error(`✖ Error processing NeuroSignalChannel file: ${relativeToCwd(filePath)}`);
-        console.error(`  ${(err as Error).message}`);
-        console.error("──────────────────────────────────────────────────────────────");
-
-        updateReport(report, {
-          filePath,
-          kind: "channel",
-          ok: false,
-          errorCount: 1,
-        });
+          ok: true,
+          errors: [],
+        };
       }
+
+      results.push(fileResult);
+      printFileResultHuman(fileResult);
+    } catch (err) {
+      results.push({
+        kind: "unknown",
+        filePath,
+        ok: false,
+        errors: [
+          {
+            instancePath: "",
+            schemaPath: "neuroxr-validate-all/io",
+            keyword: "exception",
+            message: (err as Error).message,
+          },
+        ],
+      });
+      console.error("──────────────────────────────────────────────────────────────");
+      console.error(`✖ Error while processing: ${path.relative(process.cwd(), filePath)}`);
+      console.error(`  ${(err as Error).message}`);
+      console.error("──────────────────────────────────────────────────────────────");
     }
   }
 
-  // 2. Validate all NeuroContextScene JSON files.
-  printHeader("Step 2 – Validating NeuroContextScene JSON files");
-  if (discovered.scenes.length === 0) {
-    console.log("No scene/neuro JSON files found. (This may be expected in early stages.)");
+  const summary = summarizeResults(results);
+
+  if (options.outputJson) {
+    const json = JSON.stringify(summary, null, 2);
+    // For CI, machine-readable output is invaluable. [web:58][web:67]
+    console.log(json);
   } else {
-    for (const filePath of discovered.scenes) {
-      try {
-        const data = readJsonFile(filePath);
-        const detailed = validateNeuroContextSceneDetailed(data);
-        const scene = detailed.ok ? (data as NeuroContextScene) : null;
-
-        printSceneResult(filePath, scene, detailed);
-
-        updateReport(report, {
-          filePath,
-          kind: "scene",
-          ok: detailed.ok,
-          errorCount: detailed.errors.length,
-        });
-      } catch (err) {
-        console.error("──────────────────────────────────────────────────────────────");
-        console.error(`✖ Error processing NeuroContextScene file: ${relativeToCwd(filePath)}`);
-        console.error(`  ${(err as Error).message}`);
-        console.error("──────────────────────────────────────────────────────────────");
-
-        updateReport(report, {
-          filePath,
-          kind: "scene",
-          ok: false,
-          errorCount: 1,
-        });
-      }
-    }
+    printSummaryHuman(summary);
   }
 
-  // 3. Validate telemetry JSON files if they exist.
-  printHeader("Step 3 – Validating NeuroXR Telemetry JSON files (if any)");
-  if (discovered.telemetry.length === 0) {
-    console.log("No telemetry*.json files found. Skipping telemetry validation.");
-  } else {
-    for (const filePath of discovered.telemetry) {
-      try {
-        const data = readJsonFile(filePath);
-        const detailed = validateNeuroXRTelemetryDetailed(data);
-
-        printTelemetryResult(filePath, detailed.ok, detailed.errors);
-
-        updateReport(report, {
-          filePath,
-          kind: "telemetry",
-          ok: detailed.ok,
-          errorCount: detailed.errors.length,
-        });
-      } catch (err) {
-        console.error("──────────────────────────────────────────────────────────────");
-        console.error(`✖ Error processing Telemetry file: ${relativeToCwd(filePath)}`);
-        console.error(`  ${(err as Error).message}`);
-        console.error("──────────────────────────────────────────────────────────────");
-
-        updateReport(report, {
-          filePath,
-          kind: "telemetry",
-          ok: false,
-          errorCount: 1,
-        });
-      }
-    }
-  }
-
-  // 4. Print aggregate report and set exit code.
-  printAggregateReport(report);
-
-  if (report.totalInvalid > 0) {
+  if (!summary.ok) {
     process.exitCode = 1;
   } else {
     process.exitCode = 0;
@@ -434,7 +387,7 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  console.error("Fatal error in neuroxr_validate_all.ts:");
+  console.error("Fatal error in neuroxr_validate_all CLI:");
   console.error((err as Error).stack || (err as Error).message);
   process.exitCode = 1;
 });
