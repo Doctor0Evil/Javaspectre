@@ -1,0 +1,39 @@
+// file: ontologies/neuroxr-core.aln
+// Abstract Logic Notation (ALN) definition for NeuroXR Core Ontology
+// Author: Dr. Jacob Scott Farmer ©2025 NeuroXR / Perplexity Labs Inc.
+// Purpose: Defines classes, datatypes, and property constraints for Neuro-XR objects.
+
+ontology "https://neuroxr.org/ontology/core"
+
+class NeuroSignalChannel {
+  property modality: string                // e.g., "EEG", "fMRI", "EMG"
+  property neural_data_classification: enum("direct_cns","direct_pns","inferred_non_neural","behavioral")
+  property data_sensitivity_tier: enum("low","medium","high","neural")
+  property sampling_rate_hz: decimal(min=0.0, max=100000.0)
+  link safety_envelope: SafetyEnvelope
+}
+
+class SafetyEnvelope {
+  property consent_required: bool
+  property retention_window: duration       // ISO 8601 format, e.g., "PT5M"
+  property jurisdiction: enum("CO_SB21_190","CA_SB1223","MIND_ACT","EU_AI_ART10")
+  property policy_profile_uri: string       // Link to governing policy or profile file
+}
+
+class EEG_Data_Channel extends NeuroSignalChannel {
+  // EEG-specific constraints
+  assert modality == "EEG"
+  property electrode_count: integer(min=1, max=256)
+  property impedance_ohms: decimal(min=0.0, max=100000.0)
+}
+
+// Governance constraints
+rule RequireConsentBeforeCollection {
+  when NeuroSignalChannel.data_sensitivity_tier == "neural"
+  then SafetyEnvelope.consent_required == true
+}
+
+rule ValidateRetentionWindow {
+  when SafetyEnvelope.retention_window > "PT30M"
+  warn "Retention window exceeds neurorights-recommended maximum."
+}
