@@ -1,0 +1,57 @@
+# Path: .github/workflows/compliance-deploy.yaml
+name: compliance-deploy
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+jobs:
+  compliance-deploy:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Build ALN orchestrator
+        run: |
+          if [ ! -d "aln-orchestrator" ]; then
+            echo "::error title=Missing ALN organ::aln-orchestrator crate not found."
+            echo "missing_aln_orchestrator=true" >> "$GITHUB_OUTPUT"
+            exit 2
+          fi
+          cargo build --release -p aln-orchestrator
+        id: build_aln
+
+      - name: Validate fragments (ALN)
+        id: validate_fragments
+        run: |
+          set -e
+          BIN=./target/release/aln-orchestrator
+          if [ ! -f "$BIN" ]; then
+            echo "::error title=Missing ALN binary::$BIN not found after build."
+            exit 2
+          fi
+          if [ ! -f ".aln/compliance/COMPLIANCE_SPEC.aln" ]; then
+            echo "::error title=Missing ALN compliance spec::.aln/compliance/COMPLIANCE_SPEC.aln not found."
+            echo "missing_compliance_spec=true" >> "$GITHUB_OUTPUT"
+            exit 2
+          fi
+          "$BIN"
+
+      - name: Notify on violation (ALN)
+        if: always()
+        run: |
+          BIN=./target/release/aln-orchestrator-notify
+          if [ ! -f "$BIN" ]; then
+            echo "::warning title=Missing ALN notify organ::$BIN not found; skipping notification."
+            exit 0
+          fi
+          "$BIN"
