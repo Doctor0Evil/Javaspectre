@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xrneuro:schema:NeuroSignalChannel",
+  "title": "NeuroSignalChannel",
+  "description": "Defines a standardized schema for describing neural or biosignal channels within the XR.NeuroObjectForge system, including privacy, risk, and neurorights metadata fields compliant with smart-city neuro data regulations.",
+  "type": "object",
+  "required": [
+    "id",
+    "modality",
+    "frequency_band",
+    "sampling_rate_hz",
+    "latency_ms",
+    "risk_level",
+    "privacy_level",
+    "purpose",
+    "neurorights_tags",
+    "consent_requirements"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Stable identifier for this NeuroSignalChannel instance (UUID or human-readable label)."
+    },
+    "modality": {
+      "type": "string",
+      "enum": [
+        "EEG",
+        "EMG",
+        "EOG",
+        "fNIRS",
+        "optical",
+        "mechanical_deformation",
+        "eye_tracking",
+        "heart_rate",
+        "skin_conductance"
+      ],
+      "description": "Type of neuro/biosignal sensor modality."
+    },
+    "frequency_band": {
+      "type": "string",
+      "description": "Named frequency range (e.g., alpha, beta, gamma) or sensor-specific band label."
+    },
+    "sampling_rate_hz": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Signal sampling rate in hertz."
+    },
+    "latency_ms": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Total end-to-end latency of signal processing from acquisition to decoded feature (milliseconds)."
+    },
+    "jitter_ms": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Observed variation in latency under expected session load (milliseconds)."
+    },
+    "risk_level": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "critical"],
+      "description": "Contextual risk classification for using or exposing this signal in XR experiences."
+    },
+    "privacy_level": {
+      "type": "string",
+      "enum": ["public", "community", "clinical", "secret"],
+      "description": "Privacy classification compliant with smart-city neuro data policy and neurorights guidelines."
+    },
+    "purpose": {
+      "type": "string",
+      "description": "Declared purpose of usage (e.g., accessibility enhancement, therapy, behavioral research). Advertising applications are strictly disallowed."
+    },
+    "neurorights_tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "mental_privacy",
+          "cognitive_integrity",
+          "identity_continuity",
+          "equitable_access",
+          "non_discrimination"
+        ]
+      },
+      "minItems": 1,
+      "description": "List of neurorights explicitly guaranteed or enforced by this signal channel."
+    },
+    "consent_requirements": {
+      "type": "object",
+      "required": [
+        "consent_type",
+        "revocability",
+        "multi_party",
+        "data_sharing_scope"
+      ],
+      "properties": {
+        "consent_type": {
+          "type": "string",
+          "enum": [
+            "individual_explicit",
+            "guardian_explicit",
+            "group_explicit",
+            "research_ethics_committee"
+          ],
+          "description": "Type of consent juridically required before activation or usage of neuro/biosignal collection."
+        },
+        "revocability": {
+          "type": "string",
+          "enum": ["real_time", "session_level", "persistent"],
+          "description": "Defines how quickly participants can revoke consent during or after XR sessions."
+        },
+        "multi_party": {
+          "type": "boolean",
+          "description": "Specifies whether multiple parties (e.g., clinician, guardian, participant) must jointly authorize collection and use."
+        },
+        "data_sharing_scope": {
+          "type": "string",
+          "enum": [
+            "no_sharing",
+            "device_local_only",
+            "city_local_encrypted",
+            "research_aggregated_only"
+          ],
+          "description": "Defines the maximum allowable data-sharing extent consistent with neurorights and neural data regulations."
+        }
+      },
+      "description": "Detailed, structured consent configuration for this signal channel."
+    },
+    "retention_days": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 30,
+      "description": "Maximum retention time in days for raw and derived neural features. Default aligns with smart-city NeuroXR policy."
+    },
+    "anonymization_required": {
+      "type": "boolean",
+      "default": true,
+      "description": "Specifies whether anonymization or strong pseudonymization is mandatory for storage and processing."
+    },
+    "data_security": {
+      "type": "object",
+      "required": ["encryption_at_rest", "encryption_in_transit"],
+      "properties": {
+        "encryption_at_rest": {
+          "type": "boolean",
+          "default": true,
+          "description": "Indicates if files, recordings, and derived neural data are encrypted at rest."
+        },
+        "encryption_in_transit": {
+          "type": "boolean",
+          "default": true,
+          "description": "Indicates if neural data transmissions are encrypted end-to-end in transit."
+        }
+      },
+      "description": "Defines encryption and security states for neuro data compliance."
+    }
+  },
+  "additionalProperties": false
+}
