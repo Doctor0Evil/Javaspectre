@@ -1,39 +1,113 @@
 // file: ontologies/neuroxr-core.aln
 // Abstract Logic Notation (ALN) definition for NeuroXR Core Ontology
-// Author: Dr. Jacob Scott Farmer ©2025 NeuroXR / Perplexity Labs Inc.
+// Author: Dr. Jacob Scott Farmer ©2025 NeuroXR / Perplexity Labs Inc. [web:3]
 // Purpose: Defines classes, datatypes, and property constraints for Neuro-XR objects.
 
 ontology "https://neuroxr.org/ontology/core"
 
-class NeuroSignalChannel {
-  property modality: string                // e.g., "EEG", "fMRI", "EMG"
-  property neural_data_classification: enum("direct_cns","direct_pns","inferred_non_neural","behavioral")
-  property data_sensitivity_tier: enum("low","medium","high","neural")
-  property sampling_rate_hz: decimal(min=0.0, max=100000.0)
-  link safety_envelope: SafetyEnvelope
+// =========================
+// Core datatypes & enums
+// =========================
+
+datatype NeuroModality : string {
+  pattern = "^(EEG|fMRI|EMG|ECoG|MEG|NIRS|LFP|Spike)$"
 }
+
+datatype Iso8601Duration : string {
+  pattern = "^P(?!$)(\\d+Y)?(\\d+M)?(\\d+D)?(T(\\d+H)?(\\d+M)?(\\d+S)?)?$"
+}
+
+enum NeuralDataClassification {
+  direct_cns
+  direct_pns
+  inferred_non_neural
+  behavioral
+}
+
+enum DataSensitivityTier {
+  low
+  medium
+  high
+  neural
+}
+
+enum JurisdictionCode {
+  CO_SB21_190
+  CA_SB1223
+  MIND_ACT
+  EU_AI_ART10
+}
+
+// =========================
+// Core classes
+// =========================
 
 class SafetyEnvelope {
-  property consent_required: bool
-  property retention_window: duration       // ISO 8601 format, e.g., "PT5M"
-  property jurisdiction: enum("CO_SB21_190","CA_SB1223","MIND_ACT","EU_AI_ART10")
-  property policy_profile_uri: string       // Link to governing policy or profile file
+  property consent_required       : bool
+  property retention_window       : Iso8601Duration
+  property jurisdiction           : JurisdictionCode
+  property policy_profile_uri     : string {
+    pattern = "^https?://.+"
+  }
 }
+
+class NeuroSignalChannel {
+  property channel_id             : string {
+    pattern = "^[A-Za-z0-9_\\-:.]{1,128}$"
+  }
+  property modality               : NeuroModality
+  property neural_data_classification : NeuralDataClassification
+  property data_sensitivity_tier  : DataSensitivityTier
+  property sampling_rate_hz       : decimal(min=0.0, max=100000.0, precision=6, scale=2)
+  property bit_depth              : integer(min=1, max=64)
+  property is_encrypted_at_rest   : bool
+  property is_encrypted_in_transit: bool
+  property acquisition_device_uri : string {
+    pattern = "^urn:[A-Za-z0-9][A-Za-z0-9-]{0,31}:.+"
+  }
+  link safety_envelope            : SafetyEnvelope
+}
+
+// =========================
+// EEG specialization
+// =========================
 
 class EEG_Data_Channel extends NeuroSignalChannel {
-  // EEG-specific constraints
   assert modality == "EEG"
-  property electrode_count: integer(min=1, max=256)
-  property impedance_ohms: decimal(min=0.0, max=100000.0)
+
+  property electrode_count        : integer(min=1, max=512)
+  property impedance_ohms         : decimal(min=0.0, max=100000.0, precision=8, scale=2)
+  property montages_supported     : string[]  // e.g. "10-20","10-10"
+  property reference_scheme       : enum("linked_ears","average_reference","common_reference","laplacian")
 }
 
-// Governance constraints
+// =========================
+// Governance rules
+// =========================
+
 rule RequireConsentBeforeCollection {
+  when  NeuroSignalChannel.data_sensitivity_tier == "neural"
+    and NeuroSignalChannel.safety_envelope is SafetyEnvelope
+  then  NeuroSignalChannel.safety_envelope.consent_required == true
+}
+
+rule RequireEncryptionForNeuralTier {
   when NeuroSignalChannel.data_sensitivity_tier == "neural"
-  then SafetyEnvelope.consent_required == true
+  then NeuroSignalChannel.is_encrypted_at_rest    == true
+   and NeuroSignalChannel.is_encrypted_in_transit == true
 }
 
 rule ValidateRetentionWindow {
   when SafetyEnvelope.retention_window > "PT30M"
   warn "Retention window exceeds neurorights-recommended maximum."
+}
+
+rule EnforceHighSensitivityForDirectCNS {
+  when NeuroSignalChannel.neural_data_classification == "direct_cns"
+  then NeuroSignalChannel.data_sensitivity_tier == "neural"
+}
+
+rule JurisdictionSpecificMindActFloor {
+  when SafetyEnvelope.jurisdiction == "MIND_ACT"
+  then SafetyEnvelope.retention_window <= "PT30M"
 }
