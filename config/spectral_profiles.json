@@ -1,0 +1,135 @@
+{
+  "profiles": [
+    {
+      "name": "Mistral-AI Spectral Profile",
+      "id": "mistral-spectral",
+      "theme": "Mistral-AI Spectral",
+      "version": "1.0.0",
+      "engine": {
+        "provider": "mistral",
+        "model": "mistral-large-latest",
+        "response_format": "json_object",
+        "temperature": 0.3,
+        "top_p": 0.95,
+        "max_tokens": 4096
+      },
+      "resonance": {
+        "threshold": 70,
+        "warn_below": 50,
+        "critical_below": 40,
+        "max_depth": 32,
+        "max_nodes": 10000
+      },
+      "aln": {
+        "enabled": true,
+        "compatibility": true,
+        "default_output_format": "json",
+        "mode": "spectral-introspection",
+        "attach_session_metadata": true
+      },
+      "scanner": {
+        "include_prototype": true,
+        "include_non_enumerable": false,
+        "strict_cycle_handling": true
+      },
+      "logging": {
+        "level": "info",
+        "pretty_print": true,
+        "include_input_preview": true
+      },
+      "integration": {
+        "cli_enabled": true,
+        "http_api_enabled": false,
+        "default_cli_command": "scan-resonance"
+      }
+    },
+    {
+      "name": "Perplexity Spectral Profile",
+      "id": "perplexity-spectral",
+      "theme": "Perplexity Sonar Spectral",
+      "version": "1.0.0",
+      "engine": {
+        "provider": "perplexity",
+        "model": "sonar-deep-research",
+        "response_format": "json",
+        "temperature": 0.2,
+        "top_p": 0.9,
+        "max_tokens": 8192,
+        "search_context_size": "medium"
+      },
+      "resonance": {
+        "threshold": 75,
+        "warn_below": 55,
+        "critical_below": 45,
+        "max_depth": 36,
+        "max_nodes": 15000
+      },
+      "aln": {
+        "enabled": true,
+        "compatibility": true,
+        "default_output_format": "json",
+        "mode": "web-augmented-spectral-introspection",
+        "attach_session_metadata": true
+      },
+      "scanner": {
+        "include_prototype": true,
+        "include_non_enumerable": true,
+        "strict_cycle_handling": true
+      },
+      "logging": {
+        "level": "debug",
+        "pretty_print": true,
+        "include_input_preview": true,
+        "include_search_metadata": true
+      },
+      "integration": {
+        "cli_enabled": true,
+        "http_api_enabled": true,
+        "default_cli_command": "scan-resonance-perplexity"
+      }
+    },
+    {
+      "name": "Grok Spectral Profile",
+      "id": "grok-spectral",
+      "theme": "Grok Signal-Sniffer",
+      "version": "1.0.0",
+      "engine": {
+        "provider": "grok",
+        "model": "grok-3",
+        "response_format": "json",
+        "temperature": 0.4,
+        "top_p": 0.9,
+        "max_tokens": 4096
+      },
+      "resonance": {
+        "threshold": 68,
+        "warn_below": 48,
+        "critical_below": 38,
+        "max_depth": 32,
+        "max_nodes": 12000
+      },
+      "aln": {
+        "enabled": true,
+        "compatibility": true,
+        "default_output_format": "json",
+        "mode": "reasoning-spectral-introspection",
+        "attach_session_metadata": true
+      },
+      "scanner": {
+        "include_prototype": true,
+        "include_non_enumerable": false,
+        "strict_cycle_handling": true
+      },
+      "logging": {
+        "level": "info",
+        "pretty_print": false,
+        "include_input_preview": true
+      },
+      "integration": {
+        "cli_enabled": true,
+        "http_api_enabled": true,
+        "default_cli_command": "scan-resonance-grok"
+      }
+    }
+  ]
+}
