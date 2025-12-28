@@ -1,0 +1,22 @@
+ALNProfile VNodeProfile.v1 {
+  id: "VNodeProfile.v1"
+  kind: "schema"
+  namespace: "JavaSpectre.VNode"
+
+  fields {
+    vnode_id:        String   @primary
+    browser_family:  Enum["Chrome","Firefox","Edge","Safari","AndroidWebView","Electron","Other","ServiceNode"]
+    origin:          String
+    device_class:    Enum["Desktop","Laptop","Tablet","Phone","Console","Kiosk","ServiceNode"]
+    auth_method:     Enum["WebAuthn","FIDO2","OrgKey","ServiceAccount"]
+    capabilities:    List<String>
+    log_backend:     Enum["Remote","Local","Mixed","None"]
+    labels:          Map<String,String>
+  }
+
+  semantics {
+    vnode_is_governed:      vnode_id != "" && auth_method != ""
+    vnode_can_write_repo:   "repo:write" in capabilities
+    vnode_requires_remote_logs: log_backend == "Remote" || log_backend == "Mixed"
+  }
+}
