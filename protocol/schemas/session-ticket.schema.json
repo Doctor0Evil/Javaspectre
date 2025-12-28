@@ -1,0 +1,41 @@
+{
+  "$id": "https://javaspectre.org/schemas/session-ticket.schema.json",
+  "type": "object",
+  "title": "SessionTicket",
+  "required": [
+    "ticket_id",
+    "vnode_id",
+    "issued_at",
+    "expires_at",
+    "auth_binding",
+    "au_et_limit",
+    "csp_limit",
+    "abilities",
+    "mirrors"
+  ],
+  "properties": {
+    "ticket_id": { "type": "string" },
+    "vnode_id": { "type": "string" },
+    "issued_at": { "type": "string", "format": "date-time" },
+    "expires_at": { "type": "string", "format": "date-time" },
+    "auth_binding": {
+      "type": "object",
+      "required": ["method", "subject"],
+      "properties": {
+        "method": { "type": "string", "enum": ["WebAuthn", "FIDO2", "OrgKey"] },
+        "subject": { "type": "string" }
+      }
+    },
+    "au_et_limit": { "type": "number", "minimum": 0 },
+    "csp_limit": { "type": "number", "minimum": 0 },
+    "abilities": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "mirrors": {
+      "type": "array",
+      "items": { "type": "string", "format": "uri" }
+    },
+    "signature": { "type": "string" }
+  }
+}
