@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>deep-introspective-excavation.html</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #05070c;
+      --bg-alt: #0b101a;
+      --accent: #40e0ff;
+      --accent-soft: #265a70;
+      --border-subtle: #1f2933;
+      --text-main: #e5edf5;
+      --text-soft: #9ba8c0;
+      --danger: #ff4c7d;
+      --success: #58f29b;
+      --shadow-soft: 0 0 0 1px rgba(67, 140, 255, 0.2),
+                     0 18px 45px rgba(0, 0, 0, 0.75);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+        "Segoe UI", sans-serif;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at top, #10182a 0, #05070c 55%, #000 100%);
+      color: var(--text-main);
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+      padding: 16px;
+      box-sizing: border-box;
+    }
+
+    deep-introspective-excavation {
+      max-width: 1320px;
+      width: 100%;
+      border-radius: 18px;
+      box-shadow: var(--shadow-soft);
+      border: 1px solid var(--border-subtle);
+      background:
+        radial-gradient(circle at top left, rgba(64, 224, 255, 0.08), transparent 55%),
+        radial-gradient(circle at bottom right, rgba(88, 242, 155, 0.06), transparent 60%),
+        linear-gradient(145deg, #060811 0, #060811 60%, #06050d 100%);
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body>
+
+<deep-introspective-excavation></deep-introspective-excavation>
+
+<script type="module">
+  class DeepIntrospectiveExcavation extends HTMLElement {
+    static get observedAttributes() {
+      return ["target-selector", "auto-bind", "depth-limit"];
+    }
+
+    constructor() {
+      super();
+      this.attachShadow({ mode: "open" });
+      this._object = null;
+      this._proxy = null;
+      this._log = [];
+      this._selection = null;
+      this._expanded = new Set();
+      this._depthLimit = 6;
+      this._autoBind = true;
+      this._raf = null;
+      this._lastRenderHash = "";
+      this._setup();
+    }
+
+    connectedCallback() {
+      if (!this.hasAttribute("role")) {
+        this.setAttribute("role", "region");
+      }
+      if (!this.hasAttribute("aria-label")) {
+        this.setAttribute("aria-label", "Deep object introspection and excavation console");
+      }
+      if (this._autoBind) {
+        const selector = this.getAttribute("target-selector");
+        if (selector) {
+          const target = document.querySelector(selector);
+          if (target) {
+            this.bind(target);
+          }
+        } else {
+          this.bind(window);
+        }
+      }
+    }
+
+    attributeChangedCallback(name, _oldV, newV) {
+      if (name === "auto-bind") {
+        this._autoBind = newV !== "false";
+      } else if (name === "depth-limit") {
+        const n = Number(newV);
+        if (!Number.isNaN(n) && n > 0 && n < 32) {
+          this._depthLimit = n;
+          this._scheduleRender();
+        }
+      } else if (name === "target-selector" && this.isConnected && this._autoBind) {
+        const target = newV ? document.querySelector(newV) : window;
+        if (target) {
+          this.bind(target);
+        }
+      }
+    }
+
+    get proxy() {
+      return this._proxy;
+    }
+
+    get object() {
+      return this._object;
+    }
+
+    /**
+     * Public API: bind any object/instance to the inspector.
+     * Ensures safe proxying and non-recursive logging.
+     */
+    bind(target) {
+      if (target === this || target === this.shadowRoot) return;
+      this._object = target;
+      this._proxy = this._createIntrospectiveProxy(target, []);
+      this._log = [];
+      this._selection = null;
+      this._expanded.clear();
+      this._scheduleRender();
+      return this._proxy;
+    }
+
+    /**
+     * Public API: log a manual introspection event with arbitrary metadata.
+     */
+    note(label, meta = {}) {
+      this._pushLog({
+        type: "note",
+        label,
+        meta,
+        at: performance.now(),
+      });
+    }
+
+    /* ---------- INTERNAL SETUP ---------- */
+
+    _setup() {
+      const style = document.createElement("style");
+      style.textContent = this._styles();
+      const wrapper = document.createElement("div");
+      wrapper.className = "deck";
+
+      wrapper.innerHTML = `
+        <header class="deck-header">
+          <div class="deck-title">
+            <span class="deck-pill">ALN: introspective-excavation</span>
+            <h1>Virtual Object Deep Introspection</h1>
+            <p>Attach, excavate, and prove usefulness via live structural and behavioural introspection.</p>
+          </div>
+          <div class="deck-controls">
+            <button type="button" data-action="bind-window" title="Bind global window object">
+              Bind <span>window</span>
+            </button>
+            <button type="button" data-action="bind-document" title="Bind document object">
+              Bind <span>document</span>
+            </button>
+            <button type="button" data-action="bind-self" title="Bind this element instance">
+              Bind <span>this</span>
+            </button>
+            <label class="deck-input">
+              <span>Depth</span>
+              <input type="number" min="1" max="31" value="${this._depthLimit}" data-role="depth-input" />
+            </label>
+          </div>
+        </header>
+        <main class="deck-main">
+          <section class="panel panel-structure" aria-label="Object structure">
+            <header class="panel-header">
+              <h2>Structure</h2>
+              <span class="panel-meta" data-role="root-signature"></span>
+            </header>
+            <div class="panel-body">
+              <div class="search-row">
+                <input type="search" placeholder="Filter properties (e.g. proto, length, onclick)" data-role="filter-input" />
+              </div>
+              <div class="tree" data-role="tree"></div>
+            </div>
+          </section>
+
+          <section class="panel panel-behavior" aria-label="Behavior and observability">
+            <header class="panel-header">
+              <h2>Behavior</h2>
+              <span class="panel-meta" data-role="selection-path"></span>
+            </header>
+            <div class="panel-body panel-body--split">
+              <div class="slot slot-metrics">
+                <h3>Live metrics</h3>
+                <ul class="metrics" data-role="metrics"></ul>
+              </div>
+              <div class="slot slot-insight">
+                <h3>Focused value</h3>
+                <pre class="focus" data-role="focus"></pre>
+              </div>
+            </div>
+            <footer class="panel-footer">
+              <span class="panel-meta">Proxy-bound access is logged without mutating the original graph.</span>
+            </footer>
+          </section>
+
+          <section class="panel panel-log" aria-label="Introspection log">
+            <header class="panel-header">
+              <h2>Excavation log</h2>
+              <button type="button" data-action="clear-log">Clear</button>
+            </header>
+            <div class="panel-body">
+              <ol class="log" data-role="log"></ol>
+            </div>
+          </section>
+        </main>
+      `;
+
+      this.shadowRoot.append(style, wrapper);
+      this._wireEvents(wrapper);
+      this._scheduleRender();
+    }
+
+    _wireEvents(root) {
+      root.addEventListener("click", (ev) => {
+        const btn = ev.target.closest("button");
+        if (!btn) return;
+        const action = btn.getAttribute("data-action");
+        if (!action) return;
+        ev.preventDefault();
+        if (action === "bind-window") this.bind(window);
+        else if (action === "bind-document") this.bind(document);
+        else if (action === "bind-self") this.bind(this);
+        else if (action === "clear-log") {
+          this._log = [];
+          this._scheduleRender();
+        }
+      });
+
+      const depthInput = root.querySelector('[data-role="depth-input"]');
+      if (depthInput) {
+        depthInput.addEventListener("change", () => {
+          const n = Number(depthInput.value);
+          if (!Number.isNaN(n) && n > 0 && n < 32) {
+            this._depthLimit = n;
+            this.setAttribute("depth-limit", String(n));
+          }
+        });
+      }
+
+      const filterInput = root.querySelector('[data-role="filter-input"]');
+      if (filterInput) {
+        filterInput.addEventListener("input", () => this._scheduleRender());
+      }
+
+      root.addEventListener("click", (ev) => {
+        const row = ev.target.closest("[data-path]");
+        if (!row || !row.hasAttribute("data-toggle")) return;
+        const path = row.getAttribute("data-path");
+        if (!path) return;
+        if (this._expanded.has(path)) this._expanded.delete(path);
+        else this._expanded.add(path);
+        this._scheduleRender();
+      });
+
+      root.addEventListener("click", (ev) => {
+        const sel = ev.target.closest("[data-focus-path]");
+        if (!sel) return;
+        const path = sel.getAttribute("data-focus-path");
+        if (!path) return;
+        this._selection = path;
+        this._pushLog({
+          type: "focus",
+          path,
+          at: performance.now(),
+        });
+        this._scheduleRender();
+      });
+    }
+
+    /* ---------- INTROSPECTION CORE ---------- */
+
+    _createIntrospectiveProxy(target, path) {
+      const self = this;
+      const visited = new WeakMap();
+
+      function wrap(obj, trail) {
+        if (obj === null || typeof obj !== "object" && typeof obj !== "function") {
+          return obj;
+        }
+        if (visited.has(obj)) {
+          return visited.get(obj);
+        }
+        const handler = {
+          get(original, key, receiver) {
+            const nextPath = trail.concat(String(key));
+            let value;
+            try {
+              value = Reflect.get(original, key, receiver);
+            } catch (err) {
+              self._pushLog({
+                type: "trap-error",
+                op: "get",
+                path: nextPath.join("."),
+                error: String(err),
+                at: performance.now(),
+              });
+              return undefined;
+            }
+            self._pushLog({
+              type: "get",
+              path: nextPath.join("."),
+              snapshotType: typeof value,
+              at: performance.now(),
+            });
+            return wrap(value, nextPath);
+          },
+          set(original, key, newValue, receiver) {
+            const nextPath = trail.concat(String(key));
+            self._pushLog({
+              type: "set",
+              path: nextPath.join("."),
+              snapshotType: typeof newValue,
+              at: performance.now(),
+            });
+            return Reflect.set(original, key, newValue, receiver);
+          },
+          apply(fn, thisArg, argsList) {
+            const fnPath = trail.join(".");
+            const t0 = performance.now();
+            self._pushLog({
+              type: "call",
+              path: fnPath,
+              argsPreview: String(argsList?.length ?? 0),
+              at: t0,
+            });
+            let out;
+            try {
+              out = Reflect.apply(fn, thisArg, argsList);
+            } catch (err) {
+              self._pushLog({
+                type: "call-error",
+                path: fnPath,
+                error: String(err),
+                at: performance.now(),
+              });
+              throw err;
+            }
+            const t1 = performance.now();
+            self._pushLog({
+              type: "call-result",
+              path: fnPath,
+              durationMs: +(t1 - t0).toFixed(3),
+              resultType: typeof out,
+              at: t1,
+            });
+            return wrap(out, trail.concat("«result»"));
+          }
+        };
+        const proxied = new Proxy(obj, handler);
+        visited.set(obj, proxied);
+        return proxied;
+      }
+
+      return wrap(target, path);
+    }
+
+    _snapshotObjectGraph(root, depthLimit) {
+      const seen = new WeakSet();
+      const walk = (value, depth, key = "") => {
+        const t = typeof value;
+        if (value === null || t !== "object" && t !== "function") {
+          return { kind: "leaf", key, type: t, value };
+        }
+        if (seen.has(value)) {
+          return { kind: "cycle", key, type: t };
+        }
+        if (depth >= depthLimit) {
+          return { kind: "truncated", key, type: t };
+        }
+        seen.add(value);
+        const entries = [];
+        const isArray = Array.isArray(value);
+
+        if (isArray) {
+          for (let i = 0; i < value.length; i++) {
+            entries.push(walk(value[i], depth + 1, String(i)));
+          }
+        } else {
+          for (const prop of Reflect.ownKeys(value)) {
+            try {
+              const v = value[prop];
+              entries.push(walk(v, depth + 1, String(prop)));
+            } catch {
+              entries.push({
+                kind: "inaccessible",
+                key: String(prop),
+                type: "unknown"
+              });
+            }
+          }
+        }
+
+        let proto = Object.getPrototypeOf(value);
+        let protoLabel = null;
+        if (proto && proto.constructor && proto.constructor.name) {
+          protoLabel = proto.constructor.name;
+        }
+
+        return {
+          kind: "branch",
+          key,
+          type: isArray ? "array" : t === "function" ? "function" : "object",
+          proto: protoLabel,
+          entries
+        };
+      };
+
+      return walk(root, 0, "«root»");
+    }
+
+    /* ---------- RENDERING ---------- */
+
+    _scheduleRender() {
+      if (this._raf) return;
+      this._raf = requestAnimationFrame(() => {
+        this._raf = null;
+        this._render();
+      });
+    }
+
+    _render() {
+      const root = this.shadowRoot;
+      if (!root) return;
+
+      const treeContainer = root.querySelector('[data-role="tree"]');
+      const metricsContainer = root.querySelector('[data-role="metrics"]');
+      const focusPre = root.querySelector('[data-role="focus"]');
+      const logList = root.querySelector('[data-role="log"]');
+      const sigSpan = root.querySelector('[data-role="root-signature"]');
+      const selPathSpan = root.querySelector('[data-role="selection-path"]');
+      const filterInput = root.querySelector('[data-role="filter-input"]');
+
+      const target = this._object;
+      const filter = filterInput?.value?.trim().toLowerCase() ?? "";
+
+      let sig = "unbound";
+      if (target != null) {
+        const ctor = target.constructor && target.constructor.name || typeof target;
+        sig = `${ctor} @ depth≤${this._depthLimit}`;
+      }
+      if (sigSpan) sigSpan.textContent = sig;
+
+      const selectionPath = this._selection || "—";
+      if (selPathSpan) selPathSpan.textContent = selectionPath;
+
+      /* Metrics */
+      const totalOps = this._log.length;
+      const getOps = this._log.filter(e => e.type === "get").length;
+      const setOps = this._log.filter(e => e.type === "set").length;
+      const callOps = this._log.filter(e => e.type === "call").length;
+      const callResultOps = this._log.filter(e => e.type === "call-result").length;
+      const uniquePaths = new Set(this._log.map(e => e.path).filter(Boolean)).size;
+
+      const metrics = [
+        { label: "Total operations", value: totalOps },
+        { label: "Gets", value: getOps },
+        { label: "Sets", value: setOps },
+        { label: "Calls", value: callOps },
+        { label: "Call results", value: callResultOps },
+        { label: "Unique access paths", value: uniquePaths }
+      ];
+
+      if (metricsContainer) {
+        metricsContainer.innerHTML = metrics.map(m => `
+          <li>
+            <span class="metrics-label">${m.label}</span>
+            <span class="metrics-value">${m.value}</span>
+          </li>
+        `).join("");
+      }
+
+      /* Object structure */
+      if (treeContainer) {
+        if (target == null) {
+          treeContainer.innerHTML = `<p class="placeholder">No target bound. Use the controls above or call <code>element.bind(obj)</code> from JavaScript.</p>`;
+        } else {
+          const snap = this._snapshotObjectGraph(target, this._depthLimit);
+          const html = this._renderTreeNode(snap, "root", filter);
+          treeContainer.innerHTML = html;
+        }
+      }
+
+      /* Focused value */
+      if (focusPre) {
+        let entry = null;
+        if (this._selection) {
+          const last = [...this._log].reverse()
+            .find(e => e.path === this._selection && (e.type === "get" || e.type === "set" || e.type === "call-result"));
+          entry = last || null;
+        }
+        if (!entry) {
+          focusPre.textContent = "No focused path yet. Click any property row to focus and log its access profile.";
+        } else {
+          const payload = {
+            path: entry.path,
+            type: entry.snapshotType || entry.resultType || entry.type,
+            durationMs: entry.durationMs ?? undefined,
+            at: entry.at,
+          };
+          focusPre.textContent = JSON.stringify(payload, null, 2);
+        }
+      }
+
+      /* Log rendering */
+      if (logList) {
+        const max = 128;
+        const sliced = this._log.slice(-max);
+        logList.innerHTML = sliced.map((e, idx) => {
+          const label =
+            e.type === "get" ? "GET" :
+            e.type === "set" ? "SET" :
+            e.type === "call" ? "CALL" :
+            e.type === "call-result" ? "RESULT" :
+            e.type === "note" ? "NOTE" :
+            e.type === "trap-error" ? "TRAP-ERROR" :
+            e.type === "call-error" ? "CALL-ERROR" :
+            e.type.toUpperCase();
+
+          const path = e.path || "—";
+          const extra =
+            e.error ? ` • ${e.error}` :
+            e.durationMs != null ? ` • ${e.durationMs.toFixed ? e.durationMs.toFixed(3) : e.durationMs} ms` :
+            e.label ? ` • ${e.label}` :
+            "";
+          const t = (e.at ?? 0) / 1000;
+          return `
+            <li class="log-entry log-entry--${e.type}">
+              <span class="log-index">${sliced.length - idx}</span>
+              <span class="log-badge">${label}</span>
+              <span class="log-path" data-focus-path="${path}">${path}</span>
+              <span class="log-extra">${extra}</span>
+              <span class="log-time">${t.toFixed(3)}s</span>
+            </li>
+          `;
+        }).join("");
+      }
+
+      const hash = `${sig}|${selectionPath}|${totalOps}|${filter}`;
+      this._lastRenderHash = hash;
+    }
+
+    _renderTreeNode(node, path, filter) {
+      const matchFilter = (key) => !filter || key.toLowerCase().includes(filter);
+      const escapedKey = String(node.key);
+      const nodePath = path;
+      const isExpanded = this._expanded.has(nodePath);
+      const toggleAttr = node.kind === "branch" ? 'data-toggle="1"' : "";
+      const classes = ["tree-row", `tree-row--${node.kind}`];
+      if (isExpanded) classes.push("tree-row--expanded");
+      const badge =
+        node.kind === "branch" ? "⤵" :
+        node.kind === "truncated" ? "…⋯" :
+        node.kind === "cycle" ? "∞" :
+        node.kind === "inaccessible" ? "⨯" :
+        "•";
+
+      let header = `
+        <div class="${classes.join(" ")}" data-path="${nodePath}" ${toggleAttr}>
+          <span class="tree-badge">${badge}</span>
+          <span class="tree-key" data-focus-path="${nodePath}">${escapedKey}</span>
+          <span class="tree-type">${node.type}</span>
+          ${node.proto ? `<span class="tree-proto">«${node.proto}»</span>` : ""}
+        </div>
+      `;
+
+      if (node.kind !== "branch" || !isExpanded) {
+        return header;
+      }
+
+      const children = node.entries
+        .filter(child => matchFilter(child.key))
+        .map((child, i) =>
+          `<div class="tree-children">${this._renderTreeNode(child, `${nodePath}.${child.key || i}`, filter)}</div>`
+        ).join("");
+
+      return header + children;
+    }
+
+    _pushLog(entry) {
+      this._log.push(entry);
+      if (this._log.length > 512) {
+        this._log.splice(0, this._log.length - 512);
+      }
+      this._scheduleRender();
+    }
+
+    _styles() {
+      return `
+        :host {
+          display: block;
+          color: var(--text-main);
+          font-family: inherit;
+          font-size: 14px;
+        }
+
+        .deck {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          padding: 14px 16px 16px;
+        }
+
+        .deck-header {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          align-items: flex-start;
+          justify-content: space-between;
+        }
+
+        .deck-title h1 {
+          margin: 2px 0 4px;
+          font-size: 18px;
+          letter-spacing: 0.03em;
+        }
+
+        .deck-title p {
+          margin: 0;
+          font-size: 12px;
+          color: var(--text-soft);
+        }
+
+        .deck-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 2px 6px;
+          border-radius: 999px;
+          border: 1px solid rgba(64, 224, 255, 0.5);
+          background: radial-gradient(circle at top, rgba(64, 224, 255, 0.26), rgba(7, 13, 22, 0.9));
+          font-size: 10px;
+          text-transform: uppercase;
+          letter-spacing: 0.16em;
+          color: var(--accent);
+        }
+
+        .deck-controls {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .deck-controls button {
+          border-radius: 999px;
+          border: 1px solid rgba(64, 224, 255, 0.55);
+          padding: 4px 10px;
+          background: radial-gradient(circle at top left, rgba(64, 224, 255, 0.4), rgba(8, 13, 20, 0.95));
+          color: var(--text-main);
+          font-size: 11px;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          transition: background 120ms ease, transform 80ms ease, box-shadow 80ms ease;
+          box-shadow: 0 0 0 1px rgba(9, 22, 37, 0.9);
+        }
+
+        .deck-controls button span {
+          opacity: 0.9;
+          color: var(--success);
+        }
+
+        .deck-controls button:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 8px 18px rgba(0, 0, 0, 0.75);
+        }
+
+        .deck-controls button:active {
+          transform: translateY(0);
+          box-shadow: none;
+        }
+
+        .deck-input {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 2px 8px;
+          border-radius: 999px;
+          border: 1px solid rgba(84, 116, 160, 0.7);
+          background: rgba(6, 11, 19, 0.9);
+          font-size: 11px;
+          color: var(--text-soft);
+        }
+
+        .deck-input input {
+          width: 40px;
+          border: none;
+          background: transparent;
+          padding: 1px 0;
+          color: var(--text-main);
+          font-size: 11px;
+          text-align: center;
+          outline: none;
+        }
+
+        .deck-main {
+          display: grid;
+          grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.3fr) minmax(0, 1.1fr);
+          gap: 10px;
+        }
+
+        @media (max-width: 1024px) {
+          .deck-main {
+            grid-template-columns: minmax(0, 1fr);
+          }
+        }
+
+        .panel {
+          border-radius: 14px;
+          background: rgba(6, 10, 18, 0.96);
+          border: 1px solid rgba(22, 34, 54, 0.9);
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+        }
+
+        .panel-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 8px 10px 6px;
+          border-bottom: 1px solid rgba(17, 26, 41, 0.95);
+          background: radial-gradient(circle at top, rgba(64, 224, 255, 0.12), rgba(5, 10, 19, 0.95));
+        }
+
+        .panel-header h2 {
+          margin: 0;
+          font-size: 13px;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+          color: var(--accent);
+        }
+
+        .panel-header button {
+          border-radius: 999px;
+          border: 1px solid rgba(100, 125, 175, 0.8);
+          background: transparent;
+          color: var(--text-soft);
+          padding: 2px 8px;
+          font-size: 11px;
+          cursor: pointer;
+        }
+
+        .panel-meta {
+          font-size: 11px;
+          color: var(--text-soft);
+          opacity: 0.8;
+        }
+
+        .panel-body {
+          padding: 8px 8px;
+          min-height: 0;
+        }
+
+        .panel-body--split {
+          display: grid;
+          grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.3fr);
+          gap: 6px;
+        }
+
+        .panel-footer {
+          padding: 6px 8px 7px;
+          border-top: 1px solid rgba(17, 26, 41, 0.95);
+          font-size: 10px;
+          color: var(--text-soft);
+          background: rgba(3, 8, 15, 0.95);
+        }
+
+        .search-row {
+          margin-bottom: 6px;
+        }
+
+        .search-row input[type="search"] {
+          width: 100%;
+          box-sizing: border-box;
+          padding: 5px 7px;
+          border-radius: 999px;
+          border: 1px solid rgba(53, 72, 104, 0.9);
+          background: radial-gradient(circle at top left, rgba(18, 32, 60, 0.8), rgba(5, 9, 17, 0.98));
+          color: var(--text-main);
+          font-size: 11px;
+          outline: none;
+        }
+
+        .tree {
+          max-height: 360px;
+          overflow: auto;
+          padding: 2px 2px 2px 0;
+          font-family: "SF Mono", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+          font-size: 11px;
+        }
+
+        .tree::-webkit-scrollbar {
+          width: 6px;
+        }
+
+        .tree::-webkit-scrollbar-thumb {
+          background: rgba(90, 108, 142, 0.85);
+          border-radius: 999px;
+        }
+
+        .tree-row {
+          display: grid;
+          grid-template-columns: 18px minmax(0, 1.2fr) 60px auto;
+          align-items: baseline;
+          gap: 4px;
+          padding: 2px 4px;
+          border-radius: 8px;
+          cursor: default;
+        }
+
+        .tree-row:hover {
+          background: radial-gradient(circle at left, rgba(64, 224, 255, 0.1), transparent);
+        }
+
+        .tree-row--branch {
+          cursor: pointer;
+        }
+
+        .tree-row--branch .tree-key {
+          font-weight: 500;
+        }
+
+        .tree-row--leaf .tree-type {
+          color: var(--text-soft);
+          opacity: 0.85;
+        }
+
+        .tree-row--cycle .tree-badge {
+          color: var(--danger);
+        }
+
+        .tree-row--truncated .tree-badge {
+          color: var(--accent);
+        }
+
+        .tree-children {
+          margin-left: 14px;
+        }
+
+        .tree-badge {
+          font-size: 11px;
+          opacity: 0.9;
+        }
+
+        .tree-key {
+          color: var(--text-main);
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          cursor: pointer;
+        }
+
+        .tree-type {
+          font-size: 10px;
+          text-transform: uppercase;
+          letter-spacing: 0.12em;
+          color: var(--accent);
+        }
+
+        .tree-proto {
+          font-size: 10px;
+          color: var(--text-soft);
+        }
+
+        .slot h3 {
+          margin: 0 0 4px;
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 0.14em;
+          color: var(--accent-soft);
+        }
+
+        .metrics {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr);
+          gap: 2px;
+          font-family: "SF Mono", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+          font-size: 11px;
+        }
+
+        .metrics li {
+          display: flex;
+          justify-content: space-between;
+          padding: 2px 4px;
+          border-radius: 6px;
+          background: radial-gradient(circle at left, rgba(27, 47, 80, 0.9), rgba(3, 7, 12, 0.98));
+        }
+
+        .metrics-label {
+          color: var(--text-soft);
+        }
+
+        .metrics-value {
+          color: var(--success);
+        }
+
+        .focus {
+          margin: 0;
+          padding: 6px;
+          border-radius: 8px;
+          background: radial-gradient(circle at top left, rgba(28, 35, 63, 0.9), rgba(3, 7, 13, 0.98));
+          border: 1px solid rgba(45, 63, 96, 0.95);
+          font-family: "SF Mono", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+          font-size: 11px;
+          max-height: 160px;
+          overflow: auto;
+          white-space: pre-wrap;
+        }
+
+        .log {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+          max-height: 220px;
+          overflow: auto;
+          font-family: "SF Mono", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+          font-size: 11px;
+        }
+
+        .log::-webkit-scrollbar {
+          width: 6px;
+        }
+
+        .log::-webkit-scrollbar-thumb {
+          background: rgba(90, 108, 142, 0.85);
+          border-radius: 999px;
+        }
+
+        .log-entry {
+          display: grid;
+          grid-template-columns: 26px 60px minmax(0, 1fr) 1fr 52px;
+          gap: 4px;
+          padding: 2px 4px;
+          border-radius: 6px;
+          align-items: baseline;
+        }
+
+        .log-entry:nth-child(odd) {
+          background: rgba(9, 14, 24, 0.98);
+        }
+
+        .log-entry:nth-child(even) {
+          background: rgba(7, 11, 19, 0.98);
+        }
+
+        .log-entry--call .log-badge,
+        .log-entry--call-result .log-badge {
+          background: rgba(64, 224, 255, 0.08);
+          color: var(--accent);
+        }
+
+        .log-entry--trap-error .log-badge,
+        .log-entry--call-error .log-badge {
+          background: rgba(255, 76, 125, 0.1);
+          color: var(--danger);
+        }
+
+        .log-index {
+          color: var(--text-soft);
+          text-align: right;
+        }
+
+        .log-badge {
+          font-size: 10px;
+          text-transform: uppercase;
+          letter-spacing: 0.12em;
+          padding: 1px 6px;
+          border-radius: 999px;
+          border: 1px solid rgba(55, 76, 113, 0.95);
+          text-align: center;
+        }
+
+        .log-path {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          cursor: pointer;
+          color: var(--text-main);
+        }
+
+        .log-extra {
+          font-size: 10px;
+          color: var(--text-soft);
+        }
+
+        .log-time {
+          font-size: 10px;
+          color: var(--text-soft);
+          text-align: right;
+        }
+
+        .placeholder {
+          margin: 0;
+          font-size: 11px;
+          color: var(--text-soft);
+        }
+
+        code {
+          font-family: "SF Mono", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+          font-size: 11px;
+        }
+      `;
+    }
+  }
+
+  customElements.define("deep-introspective-excavation", DeepIntrospectiveExcavation);
+</script>
+
+</body>
+</html>
