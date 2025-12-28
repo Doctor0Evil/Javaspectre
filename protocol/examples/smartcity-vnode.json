@@ -1,0 +1,17 @@
+{
+  "vnode_id": "augcity-shard-01",
+  "browser_family": "ServiceNode",
+  "origin": "https://augcity-core.local",
+  "device_class": "ServiceNode",
+  "auth_method": "OrgKey",
+  "capabilities": [
+    "infra-config-read",
+    "infra-config-propose",
+    "ai-policy-read"
+  ],
+  "log_backend": "Remote",
+  "labels": {
+    "aln_profile": "QPU.Enterprise.AugCityCore.v1",
+    "shard": "downtown-1"
+  }
+}
