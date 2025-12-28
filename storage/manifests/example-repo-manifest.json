@@ -1,0 +1,22 @@
+{
+  "repo_id": "javaspectre-runtime",
+  "canonical_hash": "sha256:abc123...",
+  "epoch": 1,
+  "mirrors": [
+    {
+      "url": "https://github.com/org/javaspectre-runtime.git",
+      "type": "GitHub",
+      "priority": 10
+    },
+    {
+      "url": "https://codeberg.org/org/javaspectre-runtime.git",
+      "type": "Codeberg",
+      "priority": 8
+    },
+    {
+      "url": "s3://javaspectre-mirror/runtime.git",
+      "type": "S3",
+      "priority": 7
+    }
+  ]
+}
