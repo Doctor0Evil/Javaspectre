@@ -1,0 +1,8 @@
+{
+  "scope": "javaspectre-runtime",
+  "rules": [
+    "This repo is for JavaSpectre browser/VNode, manifests, reconciliation, and repository introspection.",
+    "Do not add Cell gameplay logic or CEM AU.ET/CSP energy/safety code.",
+    "Limit work to neutral patterns: VNodes, SessionTickets, RepoManifest, object/excavation in code/data space only."
+  ]
+}
