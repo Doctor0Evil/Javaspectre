@@ -1,0 +1,26 @@
+{
+  "$id": "https://javaspectre.org/schemas/ability-event.schema.json",
+  "type": "object",
+  "title": "AbilityEvent",
+  "required": [
+    "event_id",
+    "ticket_id",
+    "vnode_id",
+    "ability",
+    "au_et_burn",
+    "csp_burn",
+    "action_hash",
+    "timestamp"
+  ],
+  "properties": {
+    "event_id": { "type": "string" },
+    "ticket_id": { "type": "string" },
+    "vnode_id": { "type": "string" },
+    "ability": { "type": "string" },
+    "au_et_burn": { "type": "number", "minimum": 0 },
+    "csp_burn": { "type": "number", "minimum": 0 },
+    "action_hash": { "type": "string" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "reason": { "type": "string" }
+  }
+}
