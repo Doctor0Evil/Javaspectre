@@ -1,0 +1,42 @@
+{
+  "$id": "https://javaspectre.org/schemas/vnode-profile.schema.json",
+  "type": "object",
+  "title": "VNodeProfile",
+  "required": [
+    "vnode_id",
+    "browser_family",
+    "origin",
+    "device_class",
+    "auth_method",
+    "capabilities",
+    "log_backend"
+  ],
+  "properties": {
+    "vnode_id": { "type": "string" },
+    "browser_family": {
+      "type": "string",
+      "enum": ["Chrome", "Firefox", "Edge", "Safari", "AndroidWebView", "Electron", "Other"]
+    },
+    "origin": { "type": "string" },
+    "device_class": {
+      "type": "string",
+      "enum": ["Desktop", "Laptop", "Tablet", "Phone", "Console", "Kiosk", "ServiceNode"]
+    },
+    "auth_method": {
+      "type": "string",
+      "enum": ["WebAuthn", "FIDO2", "OrgKey", "ServiceAccount"]
+    },
+    "capabilities": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "log_backend": {
+      "type": "string",
+      "enum": ["Remote", "Local", "Mixed", "None"]
+    },
+    "labels": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    }
+  }
+}
