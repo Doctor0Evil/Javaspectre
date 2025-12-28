@@ -1,0 +1,26 @@
+flowchart TD
+    %% file: /diagrams/giza-l-structure-schematic.mmd
+
+    %% Surface context
+    A[Surface Sand Layer\n0–0.5 m depth\nBlank area in Western Cemetery\n(no visible mastabas)] --> B
+
+    %% Shallow L-shaped structure
+    B[L-Shaped Structure\n~2 m (6.5 ft) depth\n~10 m (33 ft) length\nBackfilled with sand\nGPR: high-reflection boundary] --> C
+
+    %% Hypothesized entrance role
+    B -. possible former entrance path .-> C[Deeper Resistive Anomaly\n~5–10 m (16–33 ft) depth\n~10 m x 10 m footprint\nERT: high electrical resistivity]
+
+    %% Two internal possibilities for deep anomaly
+    C --> C1[Model 1:\nDense sand + gravel\n(compacted fill or construction platform)]
+    C --> C2[Model 2:\nSparse spacing + air voids\n(potential chamber/tomb volume)]
+
+    %% Archaeological frame
+    A --- M[Western Cemetery Context\nMastaba field for royal family\nand high officials\nOld Kingdom, ~4,500 years ago]
+
+    %% Exploration pipeline
+    GPR[GPR Survey Grid\n2D/3D radar slices] --> B
+    ERT[ERT Resistivity Model\nVertical sections & 3D block] --> C
+
+    %% Future actions
+    C1 -. guides .-> X[Targeted Test Excavation\nor borehole verification]
+    C2 -. high-priority target .-> X
