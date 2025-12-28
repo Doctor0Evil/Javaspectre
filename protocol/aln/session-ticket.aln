@@ -1,0 +1,26 @@
+ALNProfile SessionTicket.v1 {
+  id: "SessionTicket.v1"
+  kind: "schema"
+  namespace: "JavaSpectre.Session"
+
+  fields {
+    ticket_id:    String   @primary
+    vnode_id:     String
+    issued_at:    DateTime
+    expires_at:   DateTime
+    auth_method:  Enum["WebAuthn","FIDO2","OrgKey"]
+    auth_subject: String
+    au_et_limit:  Float    @min(0.0)
+    csp_limit:    Float    @min(0.0)
+    abilities:    List<String>
+    mirrors:      List<URI>
+    signature:    String
+  }
+
+  semantics {
+    ticket_active:      now() >= issued_at && now() <= expires_at
+    ticket_governed:    signature != "" && au_et_limit >= 0.0 && csp_limit >= 0.0
+    ticket_can_commit:  "repo:write" in abilities && ticket_active
+    ticket_can_review:  "review" in abilities && ticket_active
+  }
+}
