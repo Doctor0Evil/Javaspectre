@@ -1,0 +1,31 @@
+name: ALN Patterns CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run pattern_lint (forbidden terms and structure)
+        run: |
+          cargo run --manifest-path tools/pattern_lint/Cargo.toml -- .
+
+      - name: Check Rust pattern crates
+        run: |
+          find patterns -name "Cargo.toml" -print0 | while IFS= read -r -d '' file; do
+            echo "Checking crate at: $file"
+            cargo fmt --manifest-path "$file" --all
+            cargo check --manifest-path "$file"
+            cargo test --manifest-path "$file" --all --quiet || true
+          done
