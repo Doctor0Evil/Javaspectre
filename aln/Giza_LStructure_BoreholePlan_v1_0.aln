@@ -1,0 +1,265 @@
+aln-spec Giza_LStructure_BoreholePlan_v1_0 {
+
+  namespace phys {
+
+    const scalar RES_DRY_SAND_MIN   = 500.0;      // Ωm, lower bound for void-like dry sand/air mix[1]
+    const scalar RES_SAT_FILL_MAX   = 300.0;      // Ωm, upper bound for typical saturated or compacted fill[1]
+    const scalar TARGET_RES_VOID    = 800.0;      // Ωm, conservative decision threshold favoring void model[1]
+    const scalar DEPTH_SHALLOW_MIN  = 1.5;        // m, GPR L-ramp top estimate[2]
+    const scalar DEPTH_SHALLOW_MAX  = 2.5;        // m, GPR L-ramp base estimate[2]
+    const scalar DEPTH_BLOCK_TOP    = 5.0;        // m, ERT high-resistivity top[2]
+    const scalar DEPTH_BLOCK_BOT    = 10.0;       // m, ERT high-resistivity base[2]
+    const scalar BLOCK_LATERAL      = 10.0;       // m, approximate horizontal extent[2]
+
+  }
+
+  namespace geometry {
+
+    struct LPath2D {
+      scalar x0;
+      scalar y0;
+      scalar dx_leg1;
+      scalar dy_leg1;
+      scalar dx_leg2;
+      scalar dy_leg2;
+      scalar depth_top_m;
+      scalar depth_bot_m;
+    }
+
+    struct Block3D {
+      scalar x_center;
+      scalar y_center;
+      scalar depth_top_m;
+      scalar depth_bot_m;
+      scalar size_xy_m;
+    }
+
+    fn default_LPath() -> LPath2D {
+      LPath2D p;
+      p.x0          = 0.0;
+      p.y0          = 0.0;
+      p.dx_leg1     = 10.0;
+      p.dy_leg1     = 0.0;
+      p.dx_leg2     = 0.0;
+      p.dy_leg2     = 10.0;
+      p.depth_top_m = phys.DEPTH_SHALLOW_MIN;
+      p.depth_bot_m = phys.DEPTH_SHALLOW_MAX;
+      return p;
+    }
+
+    fn default_Block() -> Block3D {
+      Block3D b;
+      b.x_center    = 7.0;
+      b.y_center    = 3.0;
+      b.depth_top_m = phys.DEPTH_BLOCK_TOP;
+      b.depth_bot_m = phys.DEPTH_BLOCK_BOT;
+      b.size_xy_m   = phys.BLOCK_LATERAL;
+      return b;
+    }
+
+    fn L_to_block_junction(LPath2D p, Block3D b) -> (scalar, scalar, scalar) {
+      scalar x_j = p.x0 + p.dx_leg1;
+      scalar y_j = p.y0;
+      scalar z_j = 0.5 * (p.depth_bot_m + b.depth_top_m);
+      return (x_j, y_j, z_j);
+    }
+
+  }
+
+  namespace ert {
+
+    struct ERTSample {
+      scalar depth_m;
+      scalar resistivity_ohm_m;
+    }
+
+    struct ERTProfile {
+      array<ERTSample> samples;
+    }
+
+    fn synthetic_profile(Block3D b,
+                         scalar res_background,
+                         scalar res_block,
+                         int n_samples,
+                         scalar z_max) -> ERTProfile {
+
+      ERTProfile p;
+      p.samples = array<ERTSample>.empty();
+      scalar dz = z_max / scalar(n_samples);
+
+      for i in 0 .. n_samples-1 {
+        scalar z = (scalar(i) + 0.5) * dz;
+        ERTSample s;
+        s.depth_m = z;
+
+        bool in_block = (z >= b.depth_top_m) && (z <= b.depth_bot_m);
+        if in_block {
+          s.resistivity_ohm_m = res_block;
+        } else {
+          s.resistivity_ohm_m = res_background;
+        }
+
+        p.samples.push(s);
+      }
+
+      return p;
+    }
+
+    fn max_resistivity(ERTProfile p,
+                       scalar z_min,
+                       scalar z_max) -> scalar {
+      scalar rmax = 0.0;
+      for i in 0 .. p.samples.length-1 {
+        scalar z = p.samples[i].depth_m;
+        if (z >= z_min) && (z <= z_max) {
+          scalar r = p.samples[i].resistivity_ohm_m;
+          if r > rmax { rmax = r; }
+        }
+      }
+      return rmax;
+    }
+
+    fn classify_model(scalar rmax) -> int {
+      if rmax >= phys.TARGET_RES_VOID {
+        return 2; // Model 2: void/chamber favored
+      }
+      if rmax <= phys.RES_SAT_FILL_MAX {
+        return 1; // Model 1: dense sand/gravel or compact fill
+      }
+      return 0;   // Indeterminate, needs refinement
+    }
+
+  }
+
+  namespace borehole {
+
+    using geometry.LPath2D;
+    using geometry.Block3D;
+    using geometry.L_to_block_junction;
+
+    struct BoreholePlan {
+      scalar x;
+      scalar y;
+      scalar z_start_m;
+      scalar z_target_m;
+      scalar inclination_deg;
+      scalar azimuth_deg;
+      scalar safety_margin_m;
+    }
+
+    fn plan_vertical_at_junction(LPath2D lp,
+                                 Block3D blk,
+                                 scalar margin_m) -> BoreholePlan {
+
+      (scalar xj, scalar yj, scalar zj) = L_to_block_junction(lp, blk);
+
+      BoreholePlan bh;
+      bh.x              = xj;
+      bh.y              = yj;
+      bh.z_start_m      = 0.0;
+      bh.z_target_m     = zj;
+      bh.inclination_deg= 0.0;
+      bh.azimuth_deg    = 0.0;
+      bh.safety_margin_m= margin_m;
+      return bh;
+    }
+
+  }
+
+  namespace survey {
+
+    struct GPRConfig {
+      scalar freq_min_MHz;
+      scalar freq_max_MHz;
+      scalar line_spacing_m;
+      scalar inline_spacing_m;
+    }
+
+    struct ERTConfig {
+      int    electrodes;
+      scalar line_length_m;
+      scalar spacing_m;
+      string array_type;
+    }
+
+    fn default_gpr_highres() -> GPRConfig {
+      GPRConfig c;
+      c.freq_min_MHz     = 500.0;
+      c.freq_max_MHz     = 1000.0;
+      c.line_spacing_m   = 0.25;
+      c.inline_spacing_m = 0.25;
+      return c;
+    }
+
+    fn default_ert_refine() -> ERTConfig {
+      ERTConfig c;
+      c.electrodes    = 64;
+      c.line_length_m = 32.0;
+      c.spacing_m     = c.line_length_m / scalar(c.electrodes - 1);
+      c.array_type    = "Wenner-Schlumberger";
+      return c;
+    }
+
+  }
+
+  namespace entry {
+
+    using geometry.default_LPath;
+    using geometry.default_Block;
+    using ert.synthetic_profile;
+    using ert.max_resistivity;
+    using ert.classify_model;
+    using borehole.plan_vertical_at_junction;
+    using survey.default_gpr_highres;
+    using survey.default_ert_refine;
+
+    struct GizaAnomalyExplorationExport {
+      geometry.LPath2D     L_path;
+      geometry.Block3D     block;
+      borehole.BoreholePlan borehole_plan;
+      survey.GPRConfig     gpr_plan;
+      survey.ERTConfig     ert_plan;
+      scalar               max_res_block_resistivity;
+      int                  model_class;   // 0=indeterminate,1=fill,2=void
+    }
+
+    fn run() -> GizaAnomalyExplorationExport {
+
+      var lp  = default_LPath();
+      var blk = default_Block();
+
+      var ert_prof = synthetic_profile(
+        blk,
+        300.0,          // Ωm background sand/fill[1]
+        1200.0,         // Ωm block (void-like target)[1]
+        128,
+        15.0
+      );
+
+      scalar rmax = max_resistivity(
+        ert_prof,
+        phys.DEPTH_BLOCK_TOP,
+        phys.DEPTH_BLOCK_BOT
+      );
+
+      int mclass = classify_model(rmax);
+
+      var bh = plan_vertical_at_junction(lp, blk, 0.5);
+      var gpr_cfg = default_gpr_highres();
+      var ert_cfg = default_ert_refine();
+
+      GizaAnomalyExplorationExport out;
+      out.L_path                   = lp;
+      out.block                    = blk;
+      out.borehole_plan            = bh;
+      out.gpr_plan                 = gpr_cfg;
+      out.ert_plan                 = ert_cfg;
+      out.max_res_block_resistivity= rmax;
+      out.model_class              = mclass;
+
+      return out;
+    }
+
+  }
+
+}
