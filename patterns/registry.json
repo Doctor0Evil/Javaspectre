@@ -1,0 +1,68 @@
+{
+  "version": "1.0.0",
+  "schemaVersion": "javaspectre-1.0",
+  "registry": "ALN Pattern Catalog v1",
+  "patterns": [
+    {
+      "id": "reconciliation.basic",
+      "title": "Basic Mirror Reconciliation",
+      "category": "reconciliation",
+      "path": "patterns/reconciliation/pattern_reconcile.md",
+      "specVersion": "1.0.0",
+      "tags": ["mirror", "consistency", "hash", "epoch", "CRDT"],
+      "languages": ["conceptual", "rust", "javascript"],
+      "stability": "stable",
+      "maturity": "production",
+      "dependencies": [],
+      "entrypoint": "patterns/reconciliation/impl_reconcile.js",
+      "replicationTime": "2h",
+      "hash": "sha256:7f8b3c4d2e1a9f0b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b"
+    },
+    {
+      "id": "object_excavation.neutral",
+      "title": "Neutral Object Excavation",
+      "category": "object-excavation",
+      "path": "patterns/object-excavation/pattern_object_excavation.md",
+      "specVersion": "0.9.2",
+      "tags": ["repository", "graph", "classification", "read-only", "introspection", "DOM", "API"],
+      "languages": ["conceptual", "rust", "javascript"],
+      "stability": "experimental",
+      "maturity": "beta",
+      "dependencies": ["reconciliation.basic"],
+      "entrypoint": "patterns/object-excavation/excavate_neutral.js",
+      "replicationTime": "4h",
+      "hash": "sha256:a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2"
+    },
+    {
+      "id": "event_log.append_only",
+      "title": "Append-Only Event Log",
+      "category": "event-sourcing",
+      "path": "patterns/event-sourcing/pattern_event_log.md",
+      "specVersion": "1.1.0",
+      "tags": ["event-sourcing", "hash", "replay", "immutable", "merkle", "audit"],
+      "languages": ["conceptual", "rust", "javascript"],
+      "stability": "stable",
+      "maturity": "production",
+      "dependencies": ["reconciliation.basic"],
+      "entrypoint": "patterns/event-sourcing/append_log.js",
+      "replicationTime": "1h",
+      "hash": "sha256:c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6"
+    }
+  ],
+  "metadata": {
+    "totalPatterns": 3,
+    "categories": ["reconciliation", "object-excavation", "event-sourcing"],
+    "stabilityBreakdown": {
+      "stable": 2,
+      "experimental": 1
+    },
+    "created": "2025-12-28T18:10:00Z",
+    "javaspectreCompliant": true,
+    "doctrineValidation": {
+      "codePurity": true,
+      "completionIntegrity": true,
+      "enrichmentLevel": "dominant",
+      "replicationReady": true
+    }
+  }
+}
