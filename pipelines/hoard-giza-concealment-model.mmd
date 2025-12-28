@@ -1,0 +1,18 @@
+flowchart TD
+    %% file: /pipelines/hoard-giza-concealment-model.mmd
+
+    A[O1 Viking Hoard\nÅrdal, Norway] --> A1[Step 1:\nHigh-res X-ray of bracelets\n+ micro-CT of soil block]
+    A1 --> A2[Step 2:\nSpectral/elemental analysis\n(Ag-Cu-Pb-Sn, dirham signatures)]
+    A2 --> A3[Step 3:\nMicrostratigraphy of cavity\n(charcoal, ash, organics)]
+    A3 --> M[Module H:\nShallow Hoard Concealment Model]
+
+    B[O2 Giza Anomaly\nWestern Cemetery] --> B1[Step 1:\n500–1000 MHz GPR\nfocused on L-junction]
+    B1 --> B2[Step 2:\n3D ERT inversion\nvoid vs. gravel density]
+    B2 --> B3[Step 3:\nRegulated borehole at void edge\n(core + downhole logging)]
+    B3 --> N[Module T:\nDeep Tomb Concealment Model]
+
+    M --> K[Joint Kernel Kc:\nConcealment Physics\n(C = f(D,V,H,R))]
+    N --> K
+
+    K --> R1[Javaspectre Engine:\nPattern-matching new anomalies\n(shallow farms, deep cemeteries)]
+    K --> R2[XR Training Sim:\nHuman crisis-hiding behaviors\nViking ↔ Old Kingdom scenarios]
