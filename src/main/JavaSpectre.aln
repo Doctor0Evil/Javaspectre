@@ -1,0 +1,153 @@
+# src/main/JavaSpectre.aln
+# JavaSpectre ALN Topology
+# Defines nodes, capabilities, and spectral routes for Javaspectre.
+
+network JavaSpectre {
+
+  meta {
+    version = "0.1.0"
+    author  = "Dr. Jacob Scott Farmer"
+    purpose = "Introspective virtual-object harvester and cybernetic toolkit"
+  }
+
+  # ---------- Nodes (capability endpoints) ----------
+
+  node INTROSPECTOR {
+    impl      = "deep-introspective-excavation.html"
+    language  = "javascript"
+    mode      = "ui+proxy"
+    provides  = ["object_scan", "behavior_log", "structure_graph"]
+  }
+
+  node SPECTRAL_ENGINE {
+    impl      = "src/spectral/JavaspectreSuperpowerEngine.js"
+    language  = "javascript"
+    mode      = "core"
+    provides  = ["js_introspection", "repo_blueprints", "neuromorphic_flow"]
+  }
+
+  node HAB_SIM {
+    impl      = "src/capabilities/ExtraterrestrialHabSimulator.js"
+    language  = "javascript"
+    mode      = "simulation"
+    provides  = ["hab_resilience", "xr_scene_hab"]
+  }
+
+  node WORKSTATION_OPT {
+    impl      = "src/capabilities/AIWorkstationOptimizer.js"
+    language  = "javascript"
+    mode      = "advisor"
+    provides  = ["ergonomics_score", "compute_score", "efficiency_score", "xr_panel"]
+  }
+
+  node BIOMETRIC_AWARENESS {
+    impl      = "src/capabilities/BiometricAwareness.java"
+    language  = "java"
+    mode      = "service"
+    provides  = ["stress_index", "awareness_index", "bio_recommendations"]
+  }
+
+  node HAIR_ANALYZER_JS {
+    impl      = "src/capabilities/HairDamageAnalyzer.js"
+    language  = "javascript"
+    mode      = "simulation"
+    provides  = ["hair_damage_path", "hair_xr_blueprint"]
+  }
+
+  node HAIR_ANALYZER_KT {
+    impl      = "src/capabilities/HairDamageAnalyzer.kt"
+    language  = "kotlin"
+    mode      = "service"
+    provides  = ["hair_damage_score", "hair_care_plan"]
+  }
+
+  node PASSIVE_INCOME_RS {
+    impl      = "src/capabilities/AIPassiveIncomeSimulator.rs"
+    language  = "rust"
+    mode      = "simulation"
+    provides  = ["income_path", "xr_income_scene"]
+  }
+
+  node AUG_INFRA {
+    impl      = "src/capabilities/AugmentedInfrastructure.java"
+    language  = "java"
+    mode      = "advisor"
+    provides  = ["infra_scores", "infra_recommendations"]
+  }
+
+  node NEURO_WORKSTATION {
+    impl      = "src/capabilities/NeuromorphicWorkstationCybernetics.js"
+    language  = "javascript"
+    mode      = "simulation"
+    provides  = ["gpu_efficiency", "scaling_efficiency", "xr_gpu_overlay"]
+  }
+
+  # ---------- Intents → Routes ----------
+
+  intent "analyze codebase" {
+    route = [
+      INTROSPECTOR.object_scan,
+      SPECTRAL_ENGINE.js_introspection,
+      SPECTRAL_ENGINE.repo_blueprints
+    ];
+  }
+
+  intent "optimize workstation" {
+    route = [
+      BIOMETRIC_AWARENESS.stress_index,
+      WORKSTATION_OPT.ergonomics_score,
+      WORKSTATION_OPT.compute_score,
+      NEURO_WORKSTATION.gpu_efficiency
+    ];
+  }
+
+  intent "simulate space habitat" {
+    route = [
+      HAB_SIM.hab_resilience,
+      HAB_SIM.xr_scene_hab
+    ];
+  }
+
+  intent "hair repair planning" {
+    route = [
+      HAIR_ANALYZER_JS.hair_damage_path,
+      HAIR_ANALYZER_KT.hair_damage_score,
+      HAIR_ANALYZER_KT.hair_care_plan
+    ];
+  }
+
+  intent "ai passive income" {
+    route = [
+      PASSIVE_INCOME_RS.income_path,
+      NEURO_WORKSTATION.xr_gpu_overlay
+    ];
+  }
+
+  intent "infrastructure maturity" {
+    route = [
+      AUG_INFRA.infra_scores,
+      AUG_INFRA.infra_recommendations
+    ];
+  }
+
+  # ---------- Spectral policies ----------
+
+  policy default {
+    max_hops      = 6
+    allow_parallel = true
+    trace_level    = "metrics"
+  }
+
+  policy low_latency {
+    max_hops      = 3
+    allow_parallel = true
+    trace_level    = "minimal"
+  }
+
+  bind intent:"analyze codebase"       -> policy:default;
+  bind intent:"optimize workstation"   -> policy:default;
+  bind intent:"simulate space habitat" -> policy:default;
+  bind intent:"hair repair planning"   -> policy:default;
+  bind intent:"ai passive income"      -> policy:low_latency;
+  bind intent:"infrastructure maturity"-> policy:default;
+}
