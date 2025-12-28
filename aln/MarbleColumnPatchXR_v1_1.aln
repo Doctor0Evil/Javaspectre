@@ -1,0 +1,587 @@
+aln-spec MarbleColumnPatchXR_v1_1 {
+
+  namespace phys {
+
+    const scalar PI          = 3.141592653589793;
+    const scalar K_MARBLE    = 2.5;
+    const scalar RHO_MARBLE  = 2700.0;
+    const scalar CP_MARBLE   = 880.0;
+    const scalar T_AMBIENT   = 293.15;
+    const scalar T_SAFE      = 473.15;
+    const scalar T_FAILURE   = 1098.15;
+    const scalar ALPHA_MARBLE = K_MARBLE / (RHO_MARBLE * CP_MARBLE);
+    const scalar LAMBDA_LASER = 10.6e-6;
+    const scalar E_MIN_PULSE  = 0.10;
+    const scalar E_MAX_PULSE  = 1.00;
+    const scalar R_MIN_SPOT   = 0.0005;
+    const scalar R_MAX_SPOT   = 0.0020;
+    const scalar CFL_SAFETY   = 0.3;
+
+  }
+
+  namespace grid {
+
+    struct Grid3D {
+      int    nx;
+      int    ny;
+      int    nz;
+      scalar dx;
+      scalar dy;
+      scalar dz;
+    }
+
+    fn make_uniform_grid(int nx, int ny, int nz, scalar pitch_m) -> Grid3D {
+      Grid3D g;
+      g.nx = nx;
+      g.ny = ny;
+      g.nz = nz;
+      g.dx = pitch_m;
+      g.dy = pitch_m;
+      g.dz = pitch_m;
+      return g;
+    }
+
+    fn stable_dt(Grid3D g, scalar alpha) -> scalar {
+      scalar dx2 = g.dx * g.dx;
+      scalar dy2 = g.dy * g.dy;
+      scalar dz2 = g.dz * g.dz;
+      scalar dmin = dx2;
+      if dy2 < dmin { dmin = dy2; }
+      if dz2 < dmin { dmin = dz2; }
+      scalar dt_raw = dmin / (6.0 * alpha);
+      return phys.CFL_SAFETY * dt_raw;
+    }
+
+  }
+
+  namespace laser {
+
+    struct LaserParams {
+      scalar energy_pulse_J;
+      scalar spot_radius_m;
+      scalar repetition_rate_Hz;
+      scalar feedback_rate_Hz;
+    }
+
+    fn clamp_laser(LaserParams lp) -> LaserParams {
+      if lp.energy_pulse_J < phys.E_MIN_PULSE { lp.energy_pulse_J = phys.E_MIN_PULSE; }
+      if lp.energy_pulse_J > phys.E_MAX_PULSE { lp.energy_pulse_J = phys.E_MAX_PULSE; }
+      if lp.spot_radius_m  < phys.R_MIN_SPOT  { lp.spot_radius_m  = phys.R_MIN_SPOT; }
+      if lp.spot_radius_m  > phys.R_MAX_SPOT  { lp.spot_radius_m  = phys.R_MAX_SPOT; }
+      if lp.repetition_rate_Hz < 1.0    { lp.repetition_rate_Hz = 1.0; }
+      if lp.repetition_rate_Hz > 5000.0 { lp.repetition_rate_Hz = 5000.0; }
+      if lp.feedback_rate_Hz < 1.0      { lp.feedback_rate_Hz   = 1.0; }
+      if lp.feedback_rate_Hz > 5000.0   { lp.feedback_rate_Hz   = 5000.0; }
+      return lp;
+    }
+
+    struct FeedbackState {
+      scalar last_Tmax;
+      scalar path_offset_rad;
+      scalar monitoring_scale;
+    }
+
+    fn init_feedback() -> FeedbackState {
+      FeedbackState fb;
+      fb.last_Tmax        = phys.T_AMBIENT;
+      fb.path_offset_rad  = 0.0;
+      fb.monitoring_scale = 1.0;
+      return fb;
+    }
+
+    fn apply_safety_feedback(LaserParams lp,
+                             FeedbackState fb,
+                             scalar Tmax_surface) -> (LaserParams, FeedbackState, bool) {
+
+      bool safe = true;
+      fb.last_Tmax = Tmax_surface;
+
+      if Tmax_surface > phys.T_SAFE {
+        safe = false;
+        lp.energy_pulse_J   = lp.energy_pulse_J * 0.8;
+        fb.path_offset_rad  = fb.path_offset_rad + (phys.PI / 16.0);
+        fb.monitoring_scale = fb.monitoring_scale * 2.0;
+        lp.feedback_rate_Hz = lp.feedback_rate_Hz * fb.monitoring_scale;
+      }
+
+      lp = clamp_laser(lp);
+      return (lp, fb, safe);
+    }
+
+  }
+
+  namespace thermal {
+
+    using grid.Grid3D;
+
+    struct ThermalField {
+      Grid3D g;
+      scalar dt;
+      array<scalar> T;
+      scalar current_time;
+    }
+
+    fn index(Grid3D g, int i, int j, int k) -> int {
+      return k + g.nz * (j + g.ny * i);
+    }
+
+    fn init_field(Grid3D g, scalar alpha) -> ThermalField {
+      ThermalField tf;
+      tf.g = g;
+      tf.dt = grid.stable_dt(g, alpha);
+      int nTotal = g.nx * g.ny * g.nz;
+      tf.T = array<scalar>.zeros(nTotal, phys.T_AMBIENT);
+      tf.current_time = 0.0;
+      return tf;
+    }
+
+    fn deposit_energy_pulse(ThermalField tf,
+                            scalar x_m,
+                            scalar y_m,
+                            scalar z_m,
+                            scalar energy_J,
+                            scalar spot_radius_m) -> ThermalField {
+
+      Grid3D g = tf.g;
+      scalar two_sigma2 = 2.0 * spot_radius_m * spot_radius_m;
+      scalar norm = energy_J / (phys.RHO_MARBLE * phys.CP_MARBLE * phys.PI * two_sigma2);
+
+      for i in 0 .. g.nx-1 {
+        scalar cx = (i + 0.5) * g.dx;
+        scalar dx = cx - x_m;
+        for j in 0 .. g.ny-1 {
+          scalar cy = (j + 0.5) * g.dy;
+          scalar dy = cy - y_m;
+          for k in 0 .. g.nz-1 {
+            scalar cz = (k + 0.5) * g.dz;
+            scalar dz = cz - z_m;
+            scalar r2 = dx*dx + dy*dy + dz*dz;
+            scalar kernel = exp(-r2 / two_sigma2);
+            int idx = index(g, i, j, k);
+            scalar dT = norm * kernel;
+            tf.T[idx] = tf.T[idx] + dT;
+          }
+        }
+      }
+
+      return tf;
+    }
+
+    fn diffuse_and_cool(ThermalField tf,
+                        int steps,
+                        scalar alpha) -> ThermalField {
+
+      Grid3D g = tf.g;
+      array<scalar> Tnew = array<scalar>.zeros(tf.T.length, phys.T_AMBIENT);
+
+      scalar c_x = alpha * tf.dt / (g.dx * g.dx);
+      scalar c_y = alpha * tf.dt / (g.dy * g.dy);
+      scalar c_z = alpha * tf.dt / (g.dz * g.dz);
+      scalar relax = 0.0001;
+
+      for step in 0 .. steps-1 {
+
+        for i in 0 .. g.nx-1 {
+          for j in 0 .. g.ny-1 {
+            for k in 0 .. g.nz-1 {
+
+              int idx = index(g, i, j, k);
+              scalar Tij = tf.T[idx];
+
+              int ip = (i < g.nx-1) ? index(g, i+1, j,   k) : idx;
+              int im = (i > 0)      ? index(g, i-1, j,   k) : idx;
+              int jp = (j < g.ny-1) ? index(g, i,   j+1, k) : idx;
+              int jm = (j > 0)      ? index(g, i,   j-1, k) : idx;
+              int kp = (k < g.nz-1) ? index(g, i,   j,   k+1) : idx;
+              int km = (k > 0)      ? index(g, i,   j,   k-1) : idx;
+
+              scalar lap =
+                c_x * (tf.T[ip] - 2.0*Tij + tf.T[im]) +
+                c_y * (tf.T[jp] - 2.0*Tij + tf.T[jm]) +
+                c_z * (tf.T[kp] - 2.0*Tij + tf.T[km]);
+
+              scalar Tcool = Tij + lap;
+              Tcool = Tcool + relax * (phys.T_AMBIENT - Tcool);
+              Tnew[idx] = Tcool;
+            }
+          }
+        }
+
+        tf.T = Tnew;
+        tf.current_time = tf.current_time + tf.dt;
+      }
+
+      return tf;
+    }
+
+    fn max_surface_temperature(ThermalField tf) -> scalar {
+      Grid3D g = tf.g;
+      scalar Tmax = phys.T_AMBIENT;
+      int k = 0;
+
+      for i in 0 .. g.nx-1 {
+        for j in 0 .. g.ny-1 {
+          int idx = index(g, i, j, k);
+          scalar Tval = tf.T[idx];
+          if Tval > Tmax { Tmax = Tval; }
+        }
+      }
+      return Tmax;
+    }
+
+  }
+
+  namespace path {
+
+    using grid.Grid3D;
+    using laser.FeedbackState;
+
+    struct HelixParams {
+      scalar radius_m;
+      scalar pitch_m;
+      int    revolutions;
+      scalar center_x_m;
+      scalar center_y_m;
+      scalar z_start_m;
+    }
+
+    fn helix_point(HelixParams hp,
+                   FeedbackState fb,
+                   int step,
+                   int total_steps) -> (scalar, scalar, scalar) {
+
+      scalar t = (scalar(step) / scalar(total_steps-1)) * (2.0 * phys.PI * scalar(hp.revolutions));
+      scalar theta = t + fb.path_offset_rad;
+
+      scalar x = hp.center_x_m + hp.radius_m * cos(theta);
+      scalar y = hp.center_y_m + hp.radius_m * sin(theta);
+      scalar z = hp.z_start_m + hp.pitch_m * (t / (2.0 * phys.PI));
+
+      return (x, y, z);
+    }
+
+  }
+
+  namespace xr {
+
+    using grid.Grid3D;
+    using thermal.ThermalField;
+
+    struct HeightMap {
+      int nx;
+      int ny;
+      array<scalar> h;
+    }
+
+    fn to_heightmap(ThermalField tf,
+                    scalar T_threshold,
+                    scalar max_depth_m) -> HeightMap {
+
+      Grid3D g = tf.g;
+      HeightMap hm;
+      hm.nx = g.nx;
+      hm.ny = g.ny;
+      hm.h  = array<scalar>.zeros(g.nx * g.ny, 0.0);
+
+      for i in 0 .. g.nx-1 {
+        for j in 0 .. g.ny-1 {
+          scalar depth = 0.0;
+          for k in 0 .. g.nz-1 {
+            int idx = thermal.index(g, i, j, k);
+            scalar Tval = tf.T[idx];
+            if Tval > T_threshold {
+              depth = depth + g.dz;
+            }
+          }
+          if depth > max_depth_m { depth = max_depth_m; }
+          int flat = j + g.ny * i;
+          hm.h[flat] = depth;
+        }
+      }
+
+      return hm;
+    }
+
+    fn ascii_shade(scalar depth, scalar max_depth) -> char {
+      if max_depth <= 0.0 { return ' '; }
+      scalar r = depth / max_depth;
+      if r < 0.05 { return ' '; }
+      if r < 0.20 { return '.'; }
+      if r < 0.40 { return ':'; }
+      if r < 0.60 { return '*'; }
+      if r < 0.80 { return '░'; }
+      return '█';
+    }
+
+    fn render_ascii(HeightMap hm, scalar max_depth) -> array<string> {
+      array<string> lines = array<string>.empty();
+
+      for j in (hm.ny-1) .. 0 step -1 {
+        string line = "";
+        for i in 0 .. hm.nx-1 {
+          int flat = j + hm.ny * i;
+          scalar d = hm.h[flat];
+          char c = ascii_shade(d, max_depth);
+          line = line + str(c);
+        }
+        lines.push(line);
+      }
+
+      return lines;
+    }
+
+    struct XRPoint {
+      scalar x;
+      scalar y;
+      scalar z;
+      scalar temp;
+    }
+
+    struct XRFrame {
+      array<XRPoint> points;
+      scalar t;
+    }
+
+    fn export_xr_frame(ThermalField tf,
+                       scalar z_scale) -> XRFrame {
+
+      XRFrame frame;
+      frame.points = array<XRPoint>.empty();
+      frame.t = tf.current_time;
+
+      Grid3D g = tf.g;
+      int surface_k = 0;
+
+      for i in 0 .. g.nx-1 {
+        scalar x = (i + 0.5) * g.dx;
+        for j in 0 .. g.ny-1 {
+          scalar y = (j + 0.5) * g.dy;
+          int idx = thermal.index(g, i, j, surface_k);
+          scalar Tval = tf.T[idx];
+
+          XRPoint p;
+          p.x = x;
+          p.y = y;
+          p.z = z_scale * (Tval - phys.T_AMBIENT);
+          p.temp = Tval;
+
+          frame.points.push(p);
+        }
+      }
+
+      return frame;
+    }
+
+  }
+
+  namespace audit {
+
+    using laser.LaserParams;
+
+    struct SafetyRecord {
+      int    step_index;
+      scalar t_seconds;
+      scalar Tmax_surface;
+      scalar spot_x;
+      scalar spot_y;
+      scalar energy_J;
+    }
+
+    struct SafetyEnvelope {
+      array<SafetyRecord> records;
+    }
+
+    fn init_envelope() -> SafetyEnvelope {
+      SafetyEnvelope se;
+      se.records = array<SafetyRecord>.empty();
+      return se;
+    }
+
+    fn log_step(SafetyEnvelope se,
+                int step_idx,
+                scalar t,
+                scalar Tmax,
+                scalar x,
+                scalar y,
+                LaserParams lp) -> SafetyEnvelope {
+
+      SafetyRecord rec;
+      rec.step_index   = step_idx;
+      rec.t_seconds    = t;
+      rec.Tmax_surface = Tmax;
+      rec.spot_x       = x;
+      rec.spot_y       = y;
+      rec.energy_J     = lp.energy_pulse_J;
+
+      se.records.push(rec);
+      return se;
+    }
+
+  }
+
+  namespace marble_patch {
+
+    using grid.Grid3D;
+    using laser.LaserParams;
+    using laser.FeedbackState;
+    using thermal.ThermalField;
+    using path.HelixParams;
+    using xr.HeightMap;
+    using xr.XRFrame;
+    using audit.SafetyEnvelope;
+
+    struct PatchConfig {
+      Grid3D      grid;
+      LaserParams laser;
+      HelixParams helix;
+      int         steps;
+      int         diffusion_steps_per_pulse;
+      scalar      T_ablation_threshold;
+      scalar      max_depth_m;
+    }
+
+    struct PatchResult {
+      ThermalField    thermal;
+      HeightMap       heightmap;
+      array<string>   ascii_art;
+      XRFrame         xr_frame;
+      SafetyEnvelope  safety_log;
+      bool            safe;
+      scalar          Tmax_final;
+    }
+
+    fn run_patch(PatchConfig cfg) -> PatchResult {
+
+      ThermalField tf = thermal.init_field(cfg.grid, phys.ALPHA_MARBLE);
+      LaserParams lp  = laser.clamp_laser(cfg.laser);
+      FeedbackState fb = laser.init_feedback();
+      SafetyEnvelope env = audit.init_envelope();
+
+      bool all_safe = true;
+      scalar Tmax_global = phys.T_AMBIENT;
+
+      for step in 0 .. cfg.steps-1 {
+
+        (scalar sx, scalar sy, scalar sz) =
+          path.helix_point(cfg.helix, fb, step, cfg.steps);
+
+        tf = thermal.deposit_energy_pulse(tf,
+                                          sx, sy, sz,
+                                          lp.energy_pulse_J,
+                                          lp.spot_radius_m);
+
+        tf = thermal.diffuse_and_cool(tf,
+                                      cfg.diffusion_steps_per_pulse,
+                                      phys.ALPHA_MARBLE);
+
+        scalar Tmax_surf = thermal.max_surface_temperature(tf);
+        if Tmax_surf > Tmax_global { Tmax_global = Tmax_surf; }
+
+        env = audit.log_step(env,
+                             step,
+                             tf.current_time,
+                             Tmax_surf,
+                             sx, sy,
+                             lp);
+
+        (lp, fb, bool safe_step) =
+          laser.apply_safety_feedback(lp, fb, Tmax_surf);
+
+        if !safe_step {
+          all_safe = false;
+          if Tmax_surf > phys.T_FAILURE {
+            break;
+          }
+        }
+      }
+
+      HeightMap hm = xr.to_heightmap(tf,
+                                     cfg.T_ablation_threshold,
+                                     cfg.max_depth_m);
+
+      array<string> ascii = xr.render_ascii(hm, cfg.max_depth_m);
+      XRFrame frame = xr.export_xr_frame(tf, cfg.max_depth_m / (cfg.T_ablation_threshold - phys.T_AMBIENT));
+
+      PatchResult pr;
+      pr.thermal      = tf;
+      pr.heightmap    = hm;
+      pr.ascii_art    = ascii;
+      pr.xr_frame     = frame;
+      pr.safety_log   = env;
+      pr.safe         = all_safe && (Tmax_global <= phys.T_SAFE);
+      pr.Tmax_final   = Tmax_global;
+
+      return pr;
+    }
+
+  }
+
+  namespace presets {
+
+    using marble_patch.PatchConfig;
+    using grid.Grid3D;
+    using grid.make_uniform_grid;
+    using laser.LaserParams;
+    using path.HelixParams;
+
+    fn default_marble_column_patch() -> PatchConfig {
+
+      scalar pitch = 0.0005;
+
+      Grid3D g = make_uniform_grid(64, 64, 16, pitch);
+
+      LaserParams lp;
+      lp.energy_pulse_J     = 0.25;
+      lp.spot_radius_m      = 0.0010;
+      lp.repetition_rate_Hz = 500.0;
+      lp.feedback_rate_Hz   = 1000.0;
+
+      HelixParams hp;
+      hp.radius_m    = 0.015;
+      hp.pitch_m     = 0.0005;
+      hp.revolutions = 5;
+      hp.center_x_m  = 0.5 * g.nx * g.dx;
+      hp.center_y_m  = 0.5 * g.ny * g.dy;
+      hp.z_start_m   = 0.5 * g.dz;
+
+      PatchConfig cfg;
+      cfg.grid                      = g;
+      cfg.laser                     = lp;
+      cfg.helix                     = hp;
+      cfg.steps                     = 2000;
+      cfg.diffusion_steps_per_pulse = 5;
+      cfg.T_ablation_threshold      = 873.15;
+      cfg.max_depth_m               = 0.0020;
+
+      return cfg;
+    }
+
+  }
+
+  namespace entry {
+
+    using presets.default_marble_column_patch;
+    using marble_patch.run_patch;
+
+    struct MarbleColumnPatchExport {
+      array<string> ascii_heightmap;
+      bool          safe;
+      scalar        Tmax_final;
+    }
+
+    fn run() -> MarbleColumnPatchExport {
+
+      var cfg = default_marble_column_patch();
+      var result = run_patch(cfg);
+
+      MarbleColumnPatchExport out;
+      out.ascii_heightmap = result.ascii_art;
+      out.safe            = result.safe;
+      out.Tmax_final      = result.Tmax_final;
+
+      return out;
+    }
+
+  }
+
+}
