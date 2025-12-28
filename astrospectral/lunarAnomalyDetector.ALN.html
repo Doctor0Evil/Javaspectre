@@ -1,0 +1,868 @@
+<!-- filename: /Javaspectre/astrospectral/lunarAnomalyDetector.ALN.html -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Lunar Anomaly Spectral Detector – ALN Node Shell</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #05070b;
+      --bg-alt: #0c1018;
+      --fg: #e5f1ff;
+      --accent: #6fe3ff;
+      --accent-soft: rgba(111, 227, 255, 0.12);
+      --warn: #ffb347;
+      --error: #ff6b81;
+      --muted: #7c8aa5;
+      --border: #151b26;
+      --mono: "JetBrains Mono", "SF Mono", Menlo, Monaco, Consolas, monospace;
+      --sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      background: radial-gradient(circle at 0 0, #151c2b 0, #05070b 60%);
+      color: var(--fg);
+      min-height: 100vh;
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+
+    .aln-shell {
+      width: 100%;
+      max-width: 1120px;
+      background: linear-gradient(135deg, rgba(18,26,40,0.96), rgba(5,7,11,0.98));
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.015),
+        0 18px 70px rgba(0,0,0,0.75);
+      display: grid;
+      grid-template-columns: minmax(0, 1.25fr) minmax(0, 1.1fr);
+      overflow: hidden;
+    }
+
+    @media (max-width: 880px) {
+      .aln-shell {
+        grid-template-columns: minmax(0,1fr);
+      }
+    }
+
+    .pane {
+      padding: 1.25rem 1.5rem 1.5rem;
+    }
+
+    .pane--left {
+      border-right: 1px solid var(--border);
+      background:
+        radial-gradient(circle at 0 0, rgba(130,206,255,0.12), transparent 55%),
+        radial-gradient(circle at 100% 0, rgba(161,129,255,0.14), transparent 55%);
+    }
+
+    @media (max-width: 880px) {
+      .pane--left {
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+    }
+
+    .pane--right {
+      background:
+        radial-gradient(circle at 100% 0, rgba(111,227,255,0.09), transparent 55%),
+        radial-gradient(circle at 0 100%, rgba(255,255,255,0.05), transparent 55%);
+    }
+
+    .badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-bottom: 0.75rem;
+      align-items: center;
+    }
+
+    .badge {
+      font-size: 0.72rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 0.22rem 0.5rem;
+      border-radius: 999px;
+      border: 1px solid rgba(111,227,255,0.3);
+      background: radial-gradient(circle at 0 0, rgba(111,227,255,0.28), transparent 65%);
+      color: var(--accent);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      white-space: nowrap;
+    }
+
+    .badge--ghost {
+      border-color: rgba(124,138,165,0.4);
+      background: rgba(11,16,26,0.9);
+      color: var(--muted);
+    }
+
+    h1 {
+      font-size: 1.15rem;
+      margin: 0 0 0.35rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #f7fbff;
+    }
+
+    .subtitle {
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.5;
+      margin-bottom: 0.9rem;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: minmax(0,1fr) minmax(0,1fr);
+      gap: 0.75rem;
+      margin-bottom: 0.8rem;
+    }
+
+    @media (max-width: 640px) {
+      .grid-2 {
+        grid-template-columns: minmax(0,1fr);
+      }
+    }
+
+    .metric {
+      padding: 0.7rem 0.8rem;
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(8,14,25,0.96), rgba(8,12,20,0.98));
+      border: 1px solid rgba(38,51,76,0.9);
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .metric::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 0 0, rgba(111,227,255,0.18), transparent 60%);
+      opacity: 0;
+      transition: opacity 0.24s ease-out;
+      pointer-events: none;
+    }
+
+    .metric:hover::before {
+      opacity: 1;
+    }
+
+    .metric-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    .metric-value {
+      font-family: var(--mono);
+      font-size: 1.08rem;
+      color: var(--accent);
+    }
+
+    .metric-sub {
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+
+    .range-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin: 0.45rem 0 0.2rem;
+    }
+
+    .range-row label {
+      font-size: 0.74rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      min-width: 5.8rem;
+    }
+
+    .range-row input[type="range"] {
+      flex: 1;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 4px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #4f9dff, #6fe3ff);
+      outline: none;
+    }
+
+    .range-row input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #f5fbff;
+      border: 2px solid #4f9dff;
+      box-shadow: 0 0 0 3px rgba(79,157,255,0.35);
+      cursor: pointer;
+    }
+
+    .range-row input[type="range"]::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #f5fbff;
+      border: 2px solid #4f9dff;
+      box-shadow: 0 0 0 3px rgba(79,157,255,0.35);
+      cursor: pointer;
+    }
+
+    .range-value {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      color: var(--accent);
+      min-width: 3.2rem;
+      text-align: right;
+    }
+
+    .section-title {
+      margin: 0.8rem 0 0.25rem;
+      font-size: 0.84rem;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: #d5e6ff;
+    }
+
+    .small {
+      font-size: 0.74rem;
+      color: var(--muted);
+      margin: 0;
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin-top: 0.35rem;
+    }
+
+    .pill {
+      font-size: 0.7rem;
+      padding: 0.18rem 0.5rem;
+      border-radius: 999px;
+      background: rgba(13,20,33,0.96);
+      border: 1px solid rgba(111,227,255,0.25);
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .pill span {
+      color: var(--accent);
+      font-family: var(--mono);
+    }
+
+    .console {
+      margin-top: 0.75rem;
+      border-radius: 12px;
+      background: #05070b;
+      border: 1px solid rgba(19,30,53,0.95);
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      padding: 0.6rem 0.75rem;
+      max-height: 260px;
+      overflow: auto;
+      white-space: pre;
+      color: #e2f0ff;
+    }
+
+    .console-line--dim {
+      color: #6b7894;
+    }
+
+    .console-line--accent {
+      color: #6fe3ff;
+    }
+
+    .console-line--warn {
+      color: var(--warn);
+    }
+
+    .console-line--error {
+      color: var(--error);
+    }
+
+    .console-fade {
+      position: relative;
+    }
+
+    .console-fade::after {
+      content: "";
+      position: absolute;
+      inset: auto 0 0 0;
+      height: 1.7rem;
+      background: linear-gradient(to bottom, transparent, rgba(5,7,11,0.95));
+      pointer-events: none;
+    }
+
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.8rem;
+    }
+
+    button {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      padding: 0.38rem 0.85rem;
+      border-radius: 999px;
+      border: 1px solid rgba(79,157,255,0.85);
+      background: radial-gradient(circle at 0 0, rgba(111,227,255,0.28), transparent 60%);
+      color: #eff6ff;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      transition: background 0.18s ease-out, transform 0.08s ease-out, box-shadow 0.18s ease-out;
+      box-shadow:
+        0 0 0 1px rgba(15,111,255,0.1),
+        0 8px 22px rgba(0,0,0,0.6);
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow:
+        0 0 0 1px rgba(111,227,255,0.3),
+        0 12px 34px rgba(0,0,0,0.85);
+      background: radial-gradient(circle at 0 0, rgba(111,227,255,0.38), transparent 60%);
+    }
+
+    button:active {
+      transform: translateY(0);
+      box-shadow:
+        0 0 0 1px rgba(111,227,255,0.2),
+        0 6px 16px rgba(0,0,0,0.8);
+    }
+
+    .btn--ghost {
+      border-color: rgba(124,138,165,0.7);
+      background: rgba(8,12,20,0.96);
+      color: var(--muted);
+      box-shadow: none;
+    }
+
+    .btn--ghost:hover {
+      border-color: rgba(153,171,201,0.9);
+      color: #dde7ff;
+    }
+
+    .code-block {
+      margin-top: 0.8rem;
+      border-radius: 10px;
+      background: #05070b;
+      border: 1px solid rgba(23,32,52,0.94);
+      font-family: var(--mono);
+      font-size: 0.76rem;
+      padding: 0.5rem 0.65rem;
+      max-height: 220px;
+      overflow: auto;
+      color: #dfeaff;
+      white-space: pre;
+    }
+
+    .code-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+      margin-bottom: 0.25rem;
+    }
+
+    .dot-row {
+      display: inline-flex;
+      gap: 0.18rem;
+    }
+
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #363d52;
+    }
+
+    .dot--green { background: #3dd68c; }
+    .dot--yellow { background: #f1c15b; }
+    .dot--red { background: #ff6b81; }
+
+    .provenance-list {
+      margin: 0.5rem 0 0;
+      padding: 0;
+      list-style: none;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+
+    .provenance-list li {
+      margin-bottom: 0.25rem;
+    }
+
+    .provenance-key {
+      color: #a5b8ff;
+    }
+
+    .provenance-val {
+      color: #7fd6ff;
+      font-family: var(--mono);
+    }
+
+    .tagline {
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-top: 0.75rem;
+      border-top: 1px solid rgba(21,27,38,0.9);
+      padding-top: 0.55rem;
+    }
+
+    .tagline span {
+      color: var(--accent);
+    }
+  </style>
+</head>
+<body>
+  <main class="aln-shell" data-aln-node="lunar-anomaly-detector">
+    <!-- LEFT PANE: CONTROLS + METRICS -->
+    <section class="pane pane--left" aria-label="Lunar anomaly detector controls">
+      <div class="badge-row">
+        <div class="badge">ALN node · Javaspectre-grade</div>
+        <div class="badge badge--ghost">/modules/astrospectral/lunarAnomalyDetector.js</div>
+      </div>
+
+      <h1>Lunar anomaly spectral detector</h1>
+      <p class="subtitle">
+        Deterministic, clamp-safe lunar environment node tailored for ALN/QPU pipelines, parameterized for volatile chemistry, PSR thermodynamics, and forward-contamination priors.[web:6][web:8]
+      </p>
+
+      <div class="grid-2" id="metricGrid">
+        <article class="metric" data-metric="overallAnomaly">
+          <div class="metric-label">Overall anomaly</div>
+          <div class="metric-value" id="overallAnomalyValue">--.-%</div>
+          <div class="metric-sub">Weighted spectral anomaly score for current signals.</div>
+        </article>
+        <article class="metric" data-metric="habitabilityIndex">
+          <div class="metric-label">Habitability index</div>
+          <div class="metric-value" id="habitabilityIndexValue">--.-%</div>
+          <div class="metric-sub">Water, chemistry, heat flux, and cold-trap stability bundle.</div>
+        </article>
+      </div>
+
+      <h2 class="section-title">Signal inputs</h2>
+      <p class="small">
+        All inputs are hard-clamped to [0,1] client-side to mirror the module’s internal guards before ALN export.[conversation_history:0]
+      </p>
+
+      <div class="range-row">
+        <label for="chemicalActivity">chem activity</label>
+        <input id="chemicalActivity" type="range" min="0" max="1" step="0.01" value="0.55" />
+        <div class="range-value" data-bind="chemicalActivity">0.55</div>
+      </div>
+
+      <div class="range-row">
+        <label for="subsurfaceWater">subsurface H₂O</label>
+        <input id="subsurfaceWater" type="range" min="0" max="1" step="0.01" value="0.42" />
+        <div class="range-value" data-bind="subsurfaceWater">0.42</div>
+      </div>
+
+      <div class="range-row">
+        <label for="geologicalFlux">geo flux</label>
+        <input id="geologicalFlux" type="range" min="0" max="1" step="0.01" value="0.30" />
+        <div class="range-value" data-bind="geologicalFlux">0.30</div>
+      </div>
+
+      <div class="range-row">
+        <label for="coldTrapStability">cold traps</label>
+        <input id="coldTrapStability" type="range" min="0" max="1" step="0.01" value="0.60" />
+        <div class="range-value" data-bind="coldTrapStability">0.60</div>
+      </div>
+
+      <div class="range-row">
+        <label for="anthropogenicAtmosphere">anthro atm</label>
+        <input id="anthropogenicAtmosphere" type="range" min="0" max="1" step="0.01" value="0.18" />
+        <div class="range-value" data-bind="anthropogenicAtmosphere">0.18</div>
+      </div>
+
+      <div class="range-row">
+        <label for="biosignatureProbability">bio prior</label>
+        <input id="biosignatureProbability" type="range" min="0" max="1" step="0.001" value="0.02" />
+        <div class="range-value" data-bind="biosignatureProbability">0.020</div>
+      </div>
+
+      <div class="btn-row">
+        <button type="button" id="btnRecompute">
+          ⟳ Recompute resonance
+        </button>
+        <button type="button" id="btnExport" class="btn--ghost">
+          ⧉ Emit ALN payload
+        </button>
+      </div>
+
+      <p class="tagline">
+        ALN-safe export preserves site-scoped signals, resonance, and spectral vector under a single immutable payload.<span> Determinism-first; backend can swap provenance/weights for Titan, Europa, or Mars without touching the shell.</span>[conversation_history:0]
+      </p>
+    </section>
+
+    <!-- RIGHT PANE: CONSOLE + EXPORT VIEW -->
+    <section class="pane pane--right" aria-label="Lunar anomaly output and ALN payload">
+      <h2 class="section-title">Runtime console</h2>
+      <p class="small">
+        Mirrors the module’s generateSpectralReport output and surfaces clamped values, formatted to plug into deployment telemetry.[conversation_history:0]
+      </p>
+
+      <div class="console console-fade" id="console">
+<span class="console-line console-line--dim">Lunar Spectral Analysis Report</span>
+<span class="console-line console-line--dim">--------------------------------</span>
+<span class="console-line console-line--accent">Overall Anomaly Score   : --.-%</span>
+<span class="console-line console-line--accent">Habitability Index      : --.-%</span>
+<span class="console-line console-line--accent">Spectral Vector         : [0.000, 0.000, 0.000, 0.000, 0.000, 0.000]</span>
+
+<span class="console-line console-line--dim">Signal Breakdown (percent):</span>
+<span class="console-line">  CHEMICAL ACTIVITY          : --.-%</span>
+<span class="console-line">  SUBSURFACE WATER           : --.-%</span>
+<span class="console-line">  GEOLOGICAL FLUX            : --.-%</span>
+<span class="console-line">  BIOSIGNATURE PROBABILITY   : --.-%</span>
+<span class="console-line">  COLD TRAP STABILITY        : --.-%</span>
+<span class="console-line">  ANTHROPOGENIC ATMOSPHERE   : --.-%</span>
+      </div>
+
+      <h2 class="section-title">ALN payload</h2>
+      <div class="code-header">
+        <div>exportForALN("LUNAR_SOUTH_POLE_SITE_X")</div>
+        <div class="dot-row">
+          <span class="dot dot--red"></span>
+          <span class="dot dot--yellow"></span>
+          <span class="dot dot--green"></span>
+        </div>
+      </div>
+      <pre class="code-block" id="payload">
+{
+  "siteId": "LUNAR_SOUTH_POLE_SITE_X",
+  "signals": {},
+  "resonance": {},
+  "provenance": {},
+  "weights": {},
+  "spectralEmbedding": {},
+  "timestampIso": ""
+}
+      </pre>
+
+      <h2 class="section-title">Mission priors</h2>
+      <ul class="provenance-list">
+        <li><span class="provenance-key">LCROSS/Cabeus plume</span> → <span class="provenance-val">chemicalActivity, subsurfaceWater</span> (exogenic cometary+chondritic volatiles in PSR).[web:6][web:8]</li>
+        <li><span class="provenance-key">Diviner cold traps</span> → <span class="provenance-val">coldTrapStability</span> (micro cold traps, steep meter-scale gradients).[web:8]</li>
+        <li><span class="provenance-key">Apollo/Artemis ops</span> → <span class="provenance-val">anthropogenicAtmosphere</span> (transient human-made exospheres).[web:1]</li>
+      </ul>
+
+      <p class="small" style="margin-top:0.6rem;">
+        Weights and priors follow the module layout so the same shell can front Titan, Europa, or Mars variants by only swapping the imported detector instance while preserving ALN wiring.[conversation_history:0]
+      </p>
+
+      <div class="pill-row">
+        <div class="pill">anomaly weights Σ<span> = 1.00</span></div>
+        <div class="pill">habitability weights Σ<span> = 1.00</span></div>
+        <div class="pill">spectral basis ∣v∣∞<span> ≤ 1</span></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // filename: /Javaspectre/astrospectral/lunarAnomalyDetector.embed.js
+    // In-embed mirror of the Node module's logic for deterministic ALN previews.
+
+    "use strict";
+
+    class LunarAnomalyDetectorEmbed {
+      constructor() {
+        this.signals = {
+          chemicalActivity: 0.55,
+          subsurfaceWater: 0.42,
+          geologicalFlux: 0.30,
+          biosignatureProbability: 0.02,
+          coldTrapStability: 0.60,
+          anthropogenicAtmosphere: 0.18
+        };
+
+        this.weights = {
+          anomaly: {
+            chemicalActivity: 0.22,
+            subsurfaceWater: 0.22,
+            geologicalFlux: 0.20,
+            biosignatureProbability: 0.06,
+            coldTrapStability: 0.20,
+            anthropogenicAtmosphere: 0.10
+          },
+          habitability: {
+            subsurfaceWater: 0.40,
+            chemicalActivity: 0.25,
+            geologicalFlux: 0.20,
+            coldTrapStability: 0.15
+          }
+        };
+
+        this.spectralEmbedding = {
+          baseVector: [0.30, 0.15, 0.22, 0.01, 0.35, 0.05]
+        };
+
+        this.provenance = {
+          chemicalActivity: {
+            primaryMissions: ["LCROSS-Cabeus", "LRO-LAMP", "LRO-LEND"],
+            dominantSourceModel: "exogenic-cometary+chondritic-volatiles",
+            references: [
+              "LCROSS volatile plume at Cabeus crater indicated significant non-solar volatiles.",
+              "Elemental ratios suggest mixed cometary and chondritic origin, not purely volcanic."
+            ]
+          },
+          subsurfaceWater: {
+            primaryMissions: ["Chandrayaan-1 M3", "Chandrayaan-3 ChaSTE"],
+            dominantSourceModel: "PSR-regolith ice + migrating exosphere frost",
+            references: [
+              "Polar temperature profiles support shallow stable ice in permanently shadowed regions.",
+              "Slope and insolation strongly control ice stability at metre scales."
+            ]
+          },
+          geologicalFlux: {
+            primaryMissions: ["Apollo ALSEP", "Chang'e-6 radon payload (planned)"],
+            dominantSourceModel: "radon outgassing + radiogenic heating + impact gardening",
+            references: [
+              "Historical radon spikes imply episodic outgassing from the lunar interior.",
+              "Dust levitation and exosphere dynamics generate short-lived local atmospheres."
+            ]
+          },
+          biosignatureProbability: {
+            primaryMissions: [],
+            dominantSourceModel: "forward contamination + delivered organics only",
+            references: [
+              "No confirmed indigenous life signatures; index is a conservative prior on an airless body."
+            ]
+          },
+          coldTrapStability: {
+            primaryMissions: ["LRO-Diviner", "Chandrayaan-3 ChaSTE"],
+            dominantSourceModel: "microtopography-controlled cold traps and PSRs",
+            references: [
+              "Local micro-cold-traps can persist even outside large PSRs.",
+              "Diviner data show extreme temperature gradients over small spatial scales."
+            ]
+          },
+          anthropogenicAtmosphere: {
+            primaryMissions: ["Apollo", "Artemis-era modeling"],
+            dominantSourceModel: "lander exhaust + EVA outgassing",
+            references: [
+              "Human operations can generate transient, localized exospheres.",
+              "Models predict cumulative contamination around sustained bases."
+            ]
+          }
+        };
+      }
+
+      updateSignal(type, value) {
+        if (!Object.prototype.hasOwnProperty.call(this.signals, type)) {
+          throw new Error("Unknown signal type: " + type);
+        }
+        var v = Number(value);
+        if (Number.isNaN(v)) {
+          throw new Error("Value for " + type + " must be numeric.");
+        }
+        var clamped = Math.max(0, Math.min(1, v));
+        this.signals[type] = clamped;
+      }
+
+      bulkUpdate(updates) {
+        Object.entries(updates).forEach(([k, v]) => {
+          if (Object.prototype.hasOwnProperty.call(this.signals, k)) {
+            this.updateSignal(k, v);
+          }
+        });
+      }
+
+      computeResonance() {
+        var s = this.signals;
+        var wA = this.weights.anomaly;
+        var wH = this.weights.habitability;
+
+        var overallAnomaly =
+          s.chemicalActivity * wA.chemicalActivity +
+          s.subsurfaceWater * wA.subsurfaceWater +
+          s.geologicalFlux * wA.geologicalFlux +
+          s.biosignatureProbability * wA.biosignatureProbability +
+          s.coldTrapStability * wA.coldTrapStability +
+          s.anthropogenicAtmosphere * wA.anthropogenicAtmosphere;
+
+        var habitabilityIndex =
+          s.subsurfaceWater * wH.subsurfaceWater +
+          s.chemicalActivity * wH.chemicalActivity +
+          s.geologicalFlux * wH.geologicalFlux +
+          s.coldTrapStability * wH.coldTrapStability;
+
+        return {
+          overallAnomaly: overallAnomaly,
+          habitabilityIndex: habitabilityIndex,
+          spectralVector: this._computeSpectralVector()
+        };
+      }
+
+      _computeSpectralVector() {
+        return [
+          this.signals.chemicalActivity,
+          this.signals.subsurfaceWater,
+          this.signals.geologicalFlux,
+          this.signals.biosignatureProbability,
+          this.signals.coldTrapStability,
+          this.signals.anthropogenicAtmosphere
+        ];
+      }
+
+      exportForALN(siteId) {
+        var resonance = this.computeResonance();
+        return {
+          siteId: siteId || "LUNAR_POLE_GENERIC",
+          signals: Object.assign({}, this.signals),
+          resonance: resonance,
+          provenance: this.provenance,
+          weights: this.weights,
+          spectralEmbedding: this.spectralEmbedding,
+          timestampIso: new Date().toISOString()
+        };
+      }
+    }
+
+    (function initALNNode() {
+      var detector = new LunarAnomalyDetectorEmbed();
+
+      var rangeIds = [
+        "chemicalActivity",
+        "subsurfaceWater",
+        "geologicalFlux",
+        "coldTrapStability",
+        "anthropogenicAtmosphere",
+        "biosignatureProbability"
+      ];
+
+      function toFixedAuto(value, digits) {
+        var d = digits != null ? digits : 2;
+        return Number(value).toFixed(d);
+      }
+
+      function updateFromRanges() {
+        var updates = {};
+        rangeIds.forEach(function (id) {
+          var el = document.getElementById(id);
+          if (!el) return;
+          var raw = el.value;
+          var v = Number(raw);
+          if (Number.isNaN(v)) return;
+          var clamped = Math.max(0, Math.min(1, v));
+          el.value = clamped;
+          updates[id] = clamped;
+          var bind = document.querySelector('[data-bind="' + id + '"]');
+          if (bind) {
+            var digits = id === "biosignatureProbability" ? 3 : 2;
+            bind.textContent = toFixedAuto(clamped, digits);
+          }
+        });
+        detector.bulkUpdate(updates);
+        renderMetricsAndConsole();
+      }
+
+      function renderMetricsAndConsole() {
+        var res = detector.computeResonance();
+        var overallPct = res.overallAnomaly * 100;
+        var habitPct = res.habitabilityIndex * 100;
+
+        var overallEl = document.getElementById("overallAnomalyValue");
+        var habitEl = document.getElementById("habitabilityIndexValue");
+        if (overallEl) overallEl.textContent = overallPct.toFixed(1) + "%";
+        if (habitEl) habitEl.textContent = habitPct.toFixed(1) + "%";
+
+        var consoleEl = document.getElementById("console");
+        if (consoleEl) {
+          var s = detector.signals;
+          var lines = [];
+          lines.push("Lunar Spectral Analysis Report");
+          lines.push("--------------------------------");
+          lines.push("Overall Anomaly Score   : " + overallPct.toFixed(1) + "%");
+          lines.push("Habitability Index      : " + habitPct.toFixed(1) + "%");
+          lines.push(
+            "Spectral Vector         : [" +
+            res.spectralVector.map(function (v) { return v.toFixed(3); }).join(", ") +
+            "]"
+          );
+          lines.push("");
+          lines.push("Signal Breakdown (percent):");
+          function label(key) {
+            return key.replace(/([A-Z])/g, " $1").toUpperCase();
+          }
+          Object.entries(s).forEach(function ([key, val]) {
+            var lb = label(key);
+            var pct = (val * 100).toFixed(1) + "%";
+            var padded = (lb + "                          ").slice(0, 26);
+            lines.push("  " + padded + ": " + pct);
+          });
+
+          consoleEl.textContent = lines.join("\n");
+        }
+      }
+
+      function renderPayload(siteId) {
+        var payloadEl = document.getElementById("payload");
+        if (!payloadEl) return;
+        var payload = detector.exportForALN(siteId || "LUNAR_SOUTH_POLE_SITE_X");
+        // Keep JSON strictly deterministic to make hashing ALN-side trivial.
+        var json = JSON.stringify(payload, null, 2);
+        payloadEl.textContent = json;
+      }
+
+      rangeIds.forEach(function (id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener("input", updateFromRanges);
+        el.addEventListener("change", updateFromRanges);
+      });
+
+      var btnRecompute = document.getElementById("btnRecompute");
+      if (btnRecompute) {
+        btnRecompute.addEventListener("click", function () {
+          updateFromRanges();
+          renderPayload("LUNAR_SOUTH_POLE_SITE_X");
+        });
+      }
+
+      var btnExport = document.getElementById("btnExport");
+      if (btnExport) {
+        btnExport.addEventListener("click", function () {
+          renderPayload("LUNAR_SOUTH_POLE_SITE_X");
+        });
+      }
+
+      // Initial render in sync with initial control values.
+      updateFromRanges();
+      renderPayload("LUNAR_SOUTH_POLE_SITE_X");
+    })();
+  </script>
+</body>
+</html>
