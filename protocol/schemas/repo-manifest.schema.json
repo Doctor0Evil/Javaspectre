@@ -1,0 +1,26 @@
+{
+  "$id": "https://javaspectre.org/schemas/repo-manifest.schema.json",
+  "type": "object",
+  "title": "RepoManifest",
+  "required": ["repo_id", "canonical_hash", "mirrors", "epoch"],
+  "properties": {
+    "repo_id": { "type": "string" },
+    "canonical_hash": { "type": "string" },
+    "epoch": { "type": "integer", "minimum": 0 },
+    "mirrors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["url", "type"],
+        "properties": {
+          "url": { "type": "string", "format": "uri" },
+          "type": {
+            "type": "string",
+            "enum": ["GitHub", "GitLab", "Gitea", "Codeberg", "S3", "GCS", "MinIO", "Other"]
+          },
+          "priority": { "type": "integer", "minimum": 0 }
+        }
+      }
+    }
+  }
+}
