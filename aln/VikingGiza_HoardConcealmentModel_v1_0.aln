@@ -1,0 +1,360 @@
+aln-spec VikingGiza_HoardConcealmentModel_v1_0 {
+
+  namespace phys {
+
+    const scalar RHO_SAND        = 1600.0;
+    const scalar RHO_LIMESTONE   = 2600.0;
+    const scalar RHO_AIR         = 1.2;
+    const scalar RHO_WOOD        = 700.0;
+    const scalar RHO_SILVER      = 10490.0;
+
+    const scalar RES_SAND_DRY    = 1.0e3;
+    const scalar RES_SAND_MOIST  = 2.0e2;
+    const scalar RES_LIMESTONE   = 1.0e2;
+    const scalar RES_FILL_RUBBLE = 5.0e2;
+    const scalar RES_AIR         = 1.0e9;
+    const scalar RES_WOOD_CHAR   = 1.0e4;
+    const scalar RES_SILVER      = 1.6e-8;
+
+    const scalar DEPTH_VIKING_M  = 0.18;
+    const scalar DEPTH_GIZA_TOP  = 2.0;
+    const scalar DEPTH_GIZA_BOT  = 10.0;
+
+  }
+
+  namespace grid {
+
+    struct Cell1D {
+      scalar z_top;
+      scalar z_bot;
+      scalar density;
+      scalar resistivity;
+    }
+
+    struct Column1D {
+      int             n;
+      array<Cell1D>   cells;
+    }
+
+    fn make_uniform_column(int n, scalar z_max) -> Column1D {
+      Column1D col;
+      col.n = n;
+      col.cells = array<Cell1D>.empty();
+      scalar dz = z_max / scalar(n);
+      for i in 0 .. n-1 {
+        Cell1D c;
+        c.z_top      = scalar(i) * dz;
+        c.z_bot      = scalar(i+1) * dz;
+        c.density    = phys.RHO_SAND;
+        c.resistivity= phys.RES_SAND_DRY;
+        col.cells.push(c);
+      }
+      return col;
+    }
+
+  }
+
+  namespace events {
+
+    struct HoardEvent {
+      scalar depth_m;
+      scalar mass_kg;
+      scalar lateral_extent_m;
+    }
+
+    fn viking_hoard_default() -> HoardEvent {
+      HoardEvent e;
+      e.depth_m          = phys.DEPTH_VIKING_M;
+      e.mass_kg          = 0.5;
+      e.lateral_extent_m = 0.40;
+      return e;
+    }
+
+    fn giza_void_default() -> HoardEvent {
+      HoardEvent e;
+      e.depth_m          = 6.0;
+      e.mass_kg          = 0.0;
+      e.lateral_extent_m = 10.0;
+      return e;
+    }
+
+  }
+
+  namespace anomaly {
+
+    using grid.Column1D;
+    using grid.Cell1D;
+    using events.HoardEvent;
+
+    struct SpectralSignature {
+      scalar depth_center_m;
+      scalar thickness_m;
+      scalar resistivity_contrast;
+      scalar density_contrast;
+    }
+
+    fn insert_viking_hoard(Column1D col, HoardEvent e) -> (Column1D, SpectralSignature) {
+      scalar dz = col.cells.z_bot - col.cells.z_top;
+      int idx = int(e.depth_m / dz);
+      if idx < 0 { idx = 0; }
+      if idx >= col.n { idx = col.n - 1; }
+
+      scalar area = e.lateral_extent_m * e.lateral_extent_m;
+      scalar volume_cell = area * dz;
+      scalar mass_background = phys.RHO_WOOD * volume_cell;
+      scalar mass_total = mass_background + e.mass_kg;
+      scalar rho_effective = mass_total / volume_cell;
+
+      col.cells[idx].density = rho_effective;
+      col.cells[idx].resistivity = phys.RES_WOOD_CHAR;
+
+      SpectralSignature s;
+      s.depth_center_m      = 0.5 * (col.cells[idx].z_top + col.cells[idx].z_bot);
+      s.thickness_m         = dz;
+      s.resistivity_contrast= col.cells[idx].resistivity / phys.RES_SAND_DRY;
+      s.density_contrast    = rho_effective / phys.RHO_WOOD;
+
+      return (col, s);
+    }
+
+    fn insert_giza_void(Column1D col, HoardEvent e) -> (Column1D, SpectralSignature) {
+      scalar dz = col.cells.z_bot - col.cells.z_top;
+      int idx_top = int(phys.DEPTH_GIZA_TOP / dz);
+      int idx_bot = int(phys.DEPTH_GIZA_BOT / dz);
+      if idx_top < 0 { idx_top = 0; }
+      if idx_bot >= col.n { idx_bot = col.n - 1; }
+
+      for k in idx_top .. idx_bot {
+        col.cells[k].density     = phys.RHO_AIR;
+        col.cells[k].resistivity = phys.RES_AIR;
+      }
+
+      SpectralSignature s;
+      s.depth_center_m       = 0.5 * (phys.DEPTH_GIZA_TOP + phys.DEPTH_GIZA_BOT);
+      s.thickness_m          = (phys.DEPTH_GIZA_BOT - phys.DEPTH_GIZA_TOP);
+      s.resistivity_contrast = phys.RES_AIR / phys.RES_SAND_DRY;
+      s.density_contrast     = phys.RHO_AIR / phys.RHO_SAND;
+
+      return (col, s);
+    }
+
+  }
+
+  namespace sensing {
+
+    using grid.Column1D;
+    using grid.Cell1D;
+
+    struct GPRTrace {
+      array<scalar> time_ns;
+      array<scalar> amp_norm;
+    }
+
+    struct ERTCurve {
+      array<scalar> depth_m;
+      array<scalar> resistivity;
+    }
+
+    fn synth_gpr(Column1D col,
+                 scalar c_em,
+                 scalar eps_r) -> GPRTrace {
+
+      GPRTrace tr;
+      tr.time_ns  = array<scalar>.empty();
+      tr.amp_norm = array<scalar>.empty();
+
+      scalar v = c_em / sqrt(eps_r);
+      scalar dz = col.cells.z_bot - col.cells.z_top;
+
+      for i in 0 .. col.n-2 {
+        scalar z_int = col.cells[i].z_bot;
+        scalar t_two_way = 2.0 * z_int / v;
+        scalar r = (col.cells[i+1].resistivity - col.cells[i].resistivity) /
+                   (col.cells[i+1].resistivity + col.cells[i].resistivity);
+        tr.time_ns.push(1.0e9 * t_two_way);
+        tr.amp_norm.push(r);
+      }
+
+      return tr;
+    }
+
+    fn synth_ert(Column1D col) -> ERTCurve {
+      ERTCurve c;
+      c.depth_m     = array<scalar>.empty();
+      c.resistivity = array<scalar>.empty();
+
+      for i in 0 .. col.n-1 {
+        scalar z_mid = 0.5 * (col.cells[i].z_top + col.cells[i].z_bot);
+        c.depth_m.push(z_mid);
+        c.resistivity.push(col.cells[i].resistivity);
+      }
+
+      return c;
+    }
+
+  }
+
+  namespace spectral_link {
+
+    using anomaly.SpectralSignature;
+
+    struct HoardPhysicsVector {
+      scalar scaled_depth;
+      scalar scaled_thickness;
+      scalar log_resistivity_contrast;
+      scalar log_density_contrast;
+    }
+
+    fn encode_signature(SpectralSignature s,
+                        scalar depth_norm) -> HoardPhysicsVector {
+      HoardPhysicsVector v;
+      v.scaled_depth            = s.depth_center_m / depth_norm;
+      v.scaled_thickness        = s.thickness_m / depth_norm;
+      v.log_resistivity_contrast= ln(s.resistivity_contrast);
+      v.log_density_contrast    = ln(s.density_contrast);
+      return v;
+    }
+
+    fn l2_distance(HoardPhysicsVector a,
+                   HoardPhysicsVector b) -> scalar {
+      scalar d0 = a.scaled_depth            - b.scaled_depth;
+      scalar d1 = a.scaled_thickness        - b.scaled_thickness;
+      scalar d2 = a.log_resistivity_contrast- b.log_resistivity_contrast;
+      scalar d3 = a.log_density_contrast    - b.log_density_contrast;
+      return sqrt(d0*d0 + d1*d1 + d2*d2 + d3*d3);
+    }
+
+  }
+
+  namespace workflow {
+
+    using grid.make_uniform_column;
+    using events.viking_hoard_default;
+    using events.giza_void_default;
+    using anomaly.insert_viking_hoard;
+    using anomaly.insert_giza_void;
+    using sensing.synth_gpr;
+    using sensing.synth_ert;
+    using spectral_link.encode_signature;
+    using spectral_link.l2_distance;
+
+    struct SiteSpectralBundle {
+      array<scalar> gpr_time_ns;
+      array<scalar> gpr_amp_norm;
+      array<scalar> ert_depth_m;
+      array<scalar> ert_resistivity;
+      scalar        depth_center_m;
+      scalar        thickness_m;
+      scalar        resistivity_contrast;
+      scalar        density_contrast;
+    }
+
+    struct JointHoardModelExport {
+      SiteSpectralBundle viking;
+      SiteSpectralBundle giza;
+      scalar             spectral_distance_L2;
+      bool               viking_priority;
+    }
+
+    fn build_site_bundle_viking() -> SiteSpectralBundle {
+      var col = make_uniform_column(128, 2.0);
+      var e   = viking_hoard_default();
+      (col, var sig) = insert_viking_hoard(col, e);
+
+      var gpr = synth_gpr(col, 3.0e8, 4.0);
+      var ert = synth_ert(col);
+
+      SiteSpectralBundle b;
+      b.gpr_time_ns        = gpr.time_ns;
+      b.gpr_amp_norm       = gpr.amp_norm;
+      b.ert_depth_m        = ert.depth_m;
+      b.ert_resistivity    = ert.resistivity;
+      b.depth_center_m     = sig.depth_center_m;
+      b.thickness_m        = sig.thickness_m;
+      b.resistivity_contrast = sig.resistivity_contrast;
+      b.density_contrast     = sig.density_contrast;
+
+      return b;
+    }
+
+    fn build_site_bundle_giza() -> SiteSpectralBundle {
+      var col = make_uniform_column(256, 20.0);
+      var e   = giza_void_default();
+      (col, var sig) = insert_giza_void(col, e);
+
+      var gpr = synth_gpr(col, 3.0e8, 5.0);
+      var ert = synth_ert(col);
+
+      SiteSpectralBundle b;
+      b.gpr_time_ns        = gpr.time_ns;
+      b.gpr_amp_norm       = gpr.amp_norm;
+      b.ert_depth_m        = ert.depth_m;
+      b.ert_resistivity    = ert.resistivity;
+      b.depth_center_m     = sig.depth_center_m;
+      b.thickness_m        = sig.thickness_m;
+      b.resistivity_contrast = sig.resistivity_contrast;
+      b.density_contrast     = sig.density_contrast;
+
+      return b;
+    }
+
+    fn run_joint_model() -> JointHoardModelExport {
+
+      var vb = build_site_bundle_viking();
+      var gb = build_site_bundle_giza();
+
+      scalar depth_norm = 10.0;
+
+      spectral_link.HoardPhysicsVector v_vec;
+      spectral_link.HoardPhysicsVector g_vec;
+
+      v_vec = encode_signature(
+        anomaly.SpectralSignature{
+          depth_center_m      = vb.depth_center_m,
+          thickness_m         = vb.thickness_m,
+          resistivity_contrast= vb.resistivity_contrast,
+          density_contrast    = vb.density_contrast
+        },
+        depth_norm
+      );
+
+      g_vec = encode_signature(
+        anomaly.SpectralSignature{
+          depth_center_m      = gb.depth_center_m,
+          thickness_m         = gb.thickness_m,
+          resistivity_contrast= gb.resistivity_contrast,
+          density_contrast    = gb.density_contrast
+        },
+        depth_norm
+      );
+
+      scalar d = l2_distance(v_vec, g_vec);
+
+      JointHoardModelExport out;
+      out.viking               = vb;
+      out.giza                 = gb;
+      out.spectral_distance_L2 = d;
+      out.viking_priority      = true;
+
+      return out;
+    }
+
+  }
+
+  namespace entry {
+
+    using workflow.run_joint_model;
+
+    struct HoardConcealmentPhysicsExport {
+      workflow.JointHoardModelExport model;
+    }
+
+    fn run() -> HoardConcealmentPhysicsExport {
+      HoardConcealmentPhysicsExport e;
+      e.model = run_joint_model();
+      return e;
+    }
+
+  }
+
+}
