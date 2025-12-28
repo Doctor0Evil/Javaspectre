@@ -1,0 +1,14 @@
+ALNProfile GenericProfile.v1 {
+  id: "GenericProfile.v1"
+  kind: "schema"
+
+  fields {
+    profile_id: String @primary
+    labels: Map<String,String>
+    attributes: Map<String,String>
+  }
+
+  semantics {
+    profile_valid: profile_id != ""
+  }
+}
