@@ -1,0 +1,32 @@
+{
+  "version": "1.0.0",
+  "patterns": [
+    {
+      "id": "reconciliation.basic",
+      "title": "Basic Mirror Reconciliation",
+      "category": "reconciliation",
+      "path": "patterns/reconciliation/pattern_reconcile.md",
+      "tags": ["mirror", "consistency", "hash", "epoch"],
+      "languages": ["conceptual", "rust"],
+      "stability": "stable"
+    },
+    {
+      "id": "object_excavation.neutral",
+      "title": "Neutral Object Excavation",
+      "category": "object-excavation",
+      "path": "patterns/object-excavation/pattern_object_excavation.md",
+      "tags": ["repository", "graph", "classification", "read-only"],
+      "languages": ["conceptual", "rust"],
+      "stability": "experimental"
+    },
+    {
+      "id": "event_log.append_only",
+      "title": "Append-Only Event Log",
+      "category": "event-sourcing",
+      "path": "patterns/event-sourcing/pattern_event_log.md",
+      "tags": ["event-sourcing", "hash", "replay"],
+      "languages": ["conceptual", "rust"],
+      "stability": "stable"
+    }
+  ]
+}
