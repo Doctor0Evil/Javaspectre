@@ -6,19 +6,26 @@
   "main": "src/core/SpectralEngine.js",
   "bin": {
     "javaspectre": "src/cli/javaspectre.js",
-    "javaspectre-lint": "src/cli/javaspectre-lint.js"
+    "javaspectre-lint": "src/cli/javaspectre-lint.js",
+    "jspectre-scan": "src/cli/jspectre-scan.js",
+    "scan-resonance-perplexity": "src/cli/scan-resonance-perplexity.js",
+    "scan-resonance-grok": "src/cli/scan-resonance-grok.js"
   },
   "scripts": {
-    "test": "node tests/spectral.test.js && node tests/integrity.test.js && node tests/builder.test.js && node tests/harvester.test.js",
+    "test": "node tests/spectral.test.js && node tests/integrity.test.js && node tests/builder.test.js && node tests/harvester.test.js && node test/ALNKernel.test.js && node test/SpectralHarvester.test.js && node test/IntegrityEngine.test.js",
     "lint": "node ./build/ci/lint-runner.cjs || echo 'Lint runner not yet wired; skipping.'",
     "lint:aln": "javaspectre-lint src/core/ALNKernel.js",
     "demo:manifesto": "node examples/demo-manifesto.js",
     "demo:impact": "node examples/demo-impact.js",
+    "demo:mistral": "node examples/mai_demo.js",
     "cli:make": "node src/cli/commands/make.js",
     "cli:refine": "node src/cli/commands/refine.js",
     "cli:replicate": "node src/cli/commands/replicate.js",
     "cli:inspect": "node src/cli/commands/inspect.js",
-    "cli:impact": "node src/cli/commands/impact.js"
+    "cli:impact": "node src/cli/commands/impact.js",
+    "scan": "node src/cli/jspectre-scan.js",
+    "scan:perplexity": "node src/cli/scan-resonance-perplexity.js",
+    "scan:grok": "node src/cli/scan-resonance-grok.js"
   },
   "keywords": [
     "spectral-ai",
@@ -27,7 +34,14 @@
     "virtual-object-harvesting",
     "sustainability",
     "self-healing-repos",
-    "javaspectre"
+    "javaspectre",
+    "spectral",
+    "aln",
+    "mistral",
+    "perplexity",
+    "grok",
+    "introspection",
+    "javascript"
   ],
   "author": "The Javaspectre Initiative",
   "license": "MIT",
@@ -49,6 +63,19 @@
   "javaspectre": {
     "doctrineVersion": 1,
     "maxReplicationTimeHours": 24,
-    "spectralCapabilitiesModule": "src/capabilities/JavaspectreCapabilities.js"
+    "spectralCapabilitiesModule": "src/capabilities/JavaspectreCapabilities.js",
+    "mistralAdapter": {
+      "name": "jspectre-mistral",
+      "version": "0.1.0",
+      "description": "Spectral resonance analyzer for JavaScript objects, tuned for Mistral, Perplexity, and Grok.",
+      "entry": "index.js",
+      "cli": {
+        "scan": "src/cli/jspectre-scan.js",
+        "scanPerplexity": "src/cli/scan-resonance-perplexity.js",
+        "scanGrok": "src/cli/scan-resonance-grok.js"
+      },
+      "license": "Apache-2.0",
+      "type": "commonjs"
+    }
   }
 }
