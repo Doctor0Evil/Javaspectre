@@ -2,6 +2,7 @@
 #pragma once
 #include "JavaspectreAgent.hpp"
 #include "JavaspectreCore.hpp"
+#include "JavaspectreAugmented.hpp" // for CitizenContext
 #include <string>
 
 namespace javaspectre {
@@ -14,11 +15,19 @@ struct CommandContext {
     bool consentExecuteFirstStep{false}; // safety flag
 };
 
+struct AugmentedCommandContext : CommandContext {
+    CitizenContext citizen;
+};
+
 class CommandBlock {
 public:
+    // existing
     static AgentEnvelope handleSpectralScan(const CommandContext& ctx);
     static AgentEnvelope handleClassify(const CommandContext& ctx);
     static AgentEnvelope handleOrchestrate(const CommandContext& ctx);
+
+    // new for augmented-human focus
+    static AgentEnvelope handleOrchestrateAugmented(const AugmentedCommandContext& ctx);
 
 private:
     static std::string nowIso();
