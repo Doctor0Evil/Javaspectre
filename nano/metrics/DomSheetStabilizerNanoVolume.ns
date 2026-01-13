@@ -1,0 +1,30 @@
+define DomSheetWindowNanoVolume(
+  N_node,        // stabilized DOM nodes in window
+  N_attr,        // tracked stable attributes
+  N_snap,        // full + incremental snapshots
+  c_node,        // nanobytes per node
+  c_attr,        // nanobytes per attribute
+  c_snap,        // nanobytes per snapshot
+  U_json,        // base JSON-schema Nano units for window
+  U_trace,       // base trace-span Nano units for window
+  s_dom,         // DOM stability [0,1]
+  r_dom,         // DOM drift [0,1]
+  s_json,        // JSON stability [0,1]
+  r_json,        // JSON drift [0,1]
+  s_trace,       // trace stability [0,1]
+  r_trace        // trace drift [0,1]
+) -> nanobyte {
+
+  let U_dom = N_node * c_node + N_attr * c_attr + N_snap * c_snap;
+
+  let w_dom   = 1 + r_dom   - s_dom;
+  let w_json  = 1 + r_json  - s_json;
+  let w_trace = 1 + r_trace - s_trace;
+
+  let V_window =
+      U_dom   * w_dom +
+      U_json  * w_json +
+      U_trace * w_trace;
+
+  return to.nanobyte(V_window);
+}
